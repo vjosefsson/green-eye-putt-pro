@@ -141,30 +141,23 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   return (
     <>
       {!isCameraActive && !isStartingCamera ? (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-background to-muted">
-          <Card className="w-full max-w-md overflow-hidden shadow-[var(--shadow-elegant)]">
-            <div className="relative bg-card">
-              <div className="aspect-[4/3] flex flex-col items-center justify-center p-8 bg-muted/50">
-                <Camera className="w-16 h-16 mb-4 text-primary" />
-                <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
-                <p className="text-muted-foreground text-center mb-6">
-                  Capture an image of the putting green to get AI-powered line recommendations
-                </p>
-                <Button 
-                  variant="camera" 
-                  size="lg" 
-                  onClick={startCamera}
-                  className="w-full"
-                >
-                  <Camera className="mr-2" />
-                  Start Camera
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          <div className="mt-6 text-center max-w-md">
-            <p className="text-sm text-muted-foreground">
+        <div className="fixed inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-background to-muted">
+          <div className="flex flex-col items-center justify-center max-w-md">
+            <Camera className="w-16 h-16 mb-4 text-primary" />
+            <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
+            <p className="text-muted-foreground text-center mb-6">
+              Capture an image of the putting green to get AI-powered line recommendations
+            </p>
+            <Button 
+              variant="camera" 
+              size="lg" 
+              onClick={startCamera}
+              className="w-full"
+            >
+              <Camera className="mr-2" />
+              Start Camera
+            </Button>
+            <p className="text-sm text-muted-foreground text-center mt-6">
               Position the green in the frame and capture the image. Our AI will analyze the slope and break to suggest the optimal putting line.
             </p>
           </div>

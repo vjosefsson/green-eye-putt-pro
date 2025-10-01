@@ -139,84 +139,90 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-background to-muted">
-      <Card className="w-full max-w-md overflow-hidden shadow-[var(--shadow-elegant)]">
-        <div className="relative bg-card">
-          {!isCameraActive && !isStartingCamera ? (
-            <div className="aspect-[4/3] flex flex-col items-center justify-center p-8 bg-muted/50">
-              <Camera className="w-16 h-16 mb-4 text-primary" />
-              <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
-              <p className="text-muted-foreground text-center mb-6">
-                Capture an image of the putting green to get AI-powered line recommendations
-              </p>
-              <Button 
-                variant="camera" 
-                size="lg" 
-                onClick={startCamera}
-                className="w-full"
-              >
-                <Camera className="mr-2" />
-                Start Camera
-              </Button>
-            </div>
-          ) : (
-            <>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                onClick={() => {
-                  // Manual play fallback for mobile
-                  if (videoRef.current && videoRef.current.paused) {
-                    videoRef.current.play().catch(console.error);
-                  }
-                }}
-                className="w-full aspect-[4/3] object-cover bg-black"
-              />
-              {isStartingCamera && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <p className="text-white">Starting camera...</p>
-                </div>
-              )}
-              <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
-                <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
+    <>
+      {!isCameraActive && !isStartingCamera ? (
+        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-background to-muted">
+          <Card className="w-full max-w-md overflow-hidden shadow-[var(--shadow-elegant)]">
+            <div className="relative bg-card">
+              <div className="aspect-[4/3] flex flex-col items-center justify-center p-8 bg-muted/50">
+                <Camera className="w-16 h-16 mb-4 text-primary" />
+                <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
+                <p className="text-muted-foreground text-center mb-6">
+                  Capture an image of the putting green to get AI-powered line recommendations
+                </p>
+                <Button 
+                  variant="camera" 
+                  size="lg" 
+                  onClick={startCamera}
+                  className="w-full"
+                >
+                  <Camera className="mr-2" />
+                  Start Camera
+                </Button>
               </div>
-            </>
-          )}
+            </div>
+          </Card>
+
+          <div className="mt-6 text-center max-w-md">
+            <p className="text-sm text-muted-foreground">
+              Position the green in the frame and capture the image. Our AI will analyze the slope and break to suggest the optimal putting line.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="fixed inset-0 bg-black">
+          <div className="relative w-full h-full">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onClick={() => {
+                // Manual play fallback for mobile
+                if (videoRef.current && videoRef.current.paused) {
+                  videoRef.current.play().catch(console.error);
+                }
+              }}
+              className="w-full h-full object-cover"
+            />
+            
+            {isStartingCamera && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <p className="text-white">Starting camera...</p>
+              </div>
+            )}
+            
+            <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
+              <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
+            </div>
+
+            {isCameraActive && (
+              <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/80 to-transparent">
+                <Button 
+                  variant="camera" 
+                  size="lg" 
+                  onClick={captureImage}
+                  className="w-full"
+                >
+                  <Camera className="mr-2" />
+                  Capture Green
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  onClick={stopCamera}
+                  className="w-full"
+                >
+                  <RotateCcw className="mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
           
           <canvas ref={canvasRef} className="hidden" />
         </div>
-
-        {isCameraActive && (
-          <div className="p-6 space-y-3 bg-card">
-            <Button 
-              variant="camera" 
-              size="lg" 
-              onClick={captureImage}
-              className="w-full"
-            >
-              <Camera className="mr-2" />
-              Capture Green
-            </Button>
-            <Button 
-              variant="outline" 
-              size="lg" 
-              onClick={stopCamera}
-              className="w-full"
-            >
-              <RotateCcw className="mr-2" />
-              Cancel
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      <div className="mt-6 text-center max-w-md">
-        <p className="text-sm text-muted-foreground">
-          Position the green in the frame and capture the image. Our AI will analyze the slope and break to suggest the optimal putting line.
-        </p>
-      </div>
-    </div>
+      )}
+    </>
   );
 };

@@ -15,6 +15,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isNative, setIsNative] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
@@ -46,61 +47,69 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       return;
     }
 
-    // Otherwise use browser camera API
-    try {
-      console.log("Requesting camera access...");
-      
-      // Try with environment camera first, fallback to any camera
-      let mediaStream: MediaStream;
+    // Show camera UI first so video element is in DOM
+    setIsStartingCamera(true);
+    
+    // Wait for next render cycle to ensure video element exists
+    setTimeout(async () => {
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false,
-        });
-        console.log("Camera access granted with environment camera");
+        console.log("Requesting camera access...");
+        
+        // Try with environment camera first, fallback to any camera
+        let mediaStream: MediaStream;
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            },
+            audio: false,
+          });
+          console.log("Camera access granted with environment camera");
+        } catch (error) {
+          console.log("Environment camera not available, trying any camera...");
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          console.log("Camera access granted with default camera");
+        }
+        
+        if (videoRef.current) {
+          const video = videoRef.current;
+          
+          video.srcObject = mediaStream;
+          setStream(mediaStream);
+          setIsCameraActive(true);
+          setIsStartingCamera(false);
+          console.log("Video source set, camera active");
+          
+          // Add event listeners for better mobile support
+          video.onloadedmetadata = () => {
+            console.log("Video metadata loaded, readyState:", video.readyState);
+            video.play()
+              .then(() => {
+                console.log("Video playing successfully");
+              })
+              .catch((err) => {
+                console.error("Error playing video (autoplay blocked?):", err);
+                alert("Tap the video to start camera feed");
+              });
+          };
+          
+          video.onerror = (err) => {
+            console.error("Video element error:", err);
+            alert("Unable to display camera feed. Please try again.");
+          };
+        }
       } catch (error) {
-        console.log("Environment camera not available, trying any camera...");
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-        console.log("Camera access granted with default camera");
+        console.error("Error accessing camera:", error);
+        alert("Unable to access camera. Please ensure camera permissions are granted and try again.");
+        setIsStartingCamera(false);
+        setIsCameraActive(false);
       }
-      
-      if (videoRef.current) {
-        const video = videoRef.current;
-        
-        video.srcObject = mediaStream;
-        setStream(mediaStream);
-        setIsCameraActive(true); // Show video immediately
-        console.log("Video source set, camera active");
-        
-        // Add event listeners for better mobile support
-        video.onloadedmetadata = () => {
-          console.log("Video metadata loaded, readyState:", video.readyState);
-          video.play()
-            .then(() => {
-              console.log("Video playing successfully");
-            })
-            .catch((err) => {
-              console.error("Error playing video (autoplay blocked?):", err);
-              alert("Tap the video to start camera feed");
-            });
-        };
-        
-        video.onerror = (err) => {
-          console.error("Video element error:", err);
-          alert("Unable to display camera feed. Please try again.");
-        };
-      }
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      alert("Unable to access camera. Please ensure camera permissions are granted and try again.");
-    }
+    }, 100);
   };
 
   const stopCamera = () => {
@@ -133,7 +142,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-background to-muted">
       <Card className="w-full max-w-md overflow-hidden shadow-[var(--shadow-elegant)]">
         <div className="relative bg-card">
-          {!isCameraActive ? (
+          {!isCameraActive && !isStartingCamera ? (
             <div className="aspect-[4/3] flex flex-col items-center justify-center p-8 bg-muted/50">
               <Camera className="w-16 h-16 mb-4 text-primary" />
               <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
@@ -163,8 +172,13 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                     videoRef.current.play().catch(console.error);
                   }
                 }}
-                className="w-full aspect-[4/3] object-cover"
+                className="w-full aspect-[4/3] object-cover bg-black"
               />
+              {isStartingCamera && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <p className="text-white">Starting camera...</p>
+                </div>
+              )}
               <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
                 <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
               </div>

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { RotateCcw, Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -66,13 +65,13 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen p-6 bg-gradient-to-b from-background to-muted">
-      <Card className="w-full max-w-md overflow-hidden shadow-[var(--shadow-elegant)]">
-        <div className="relative">
+    <div className="fixed inset-0 bg-gradient-to-b from-background to-muted flex flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="relative w-full">
           <img 
             src={imageData} 
             alt="Captured green" 
-            className="w-full aspect-[4/3] object-cover"
+            className="w-full object-contain max-h-[40vh]"
           />
           <div className="absolute inset-0 pointer-events-none">
             {/* Ball marker */}
@@ -105,7 +104,7 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
           </div>
         </div>
 
-        <div className="p-6 space-y-4 bg-card">
+        <div className="p-6 space-y-4">
           {isAnalyzing ? (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
@@ -170,7 +169,7 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
             Analyze Another Green
           </Button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

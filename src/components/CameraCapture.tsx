@@ -74,18 +74,21 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       if (videoRef.current) {
         const video = videoRef.current;
         
+        video.srcObject = mediaStream;
+        setStream(mediaStream);
+        setIsCameraActive(true); // Show video immediately
+        console.log("Video source set, camera active");
+        
         // Add event listeners for better mobile support
         video.onloadedmetadata = () => {
-          console.log("Video metadata loaded");
+          console.log("Video metadata loaded, readyState:", video.readyState);
           video.play()
             .then(() => {
               console.log("Video playing successfully");
-              setIsCameraActive(true);
             })
             .catch((err) => {
-              console.error("Error playing video:", err);
-              // Try to play again after user interaction
-              setIsCameraActive(true);
+              console.error("Error playing video (autoplay blocked?):", err);
+              alert("Tap the video to start camera feed");
             });
         };
         
@@ -93,10 +96,6 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
           console.error("Video element error:", err);
           alert("Unable to display camera feed. Please try again.");
         };
-        
-        video.srcObject = mediaStream;
-        setStream(mediaStream);
-        console.log("Video source set");
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
@@ -157,6 +156,13 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted
+                onClick={() => {
+                  // Manual play fallback for mobile
+                  if (videoRef.current && videoRef.current.paused) {
+                    videoRef.current.play().catch(console.error);
+                  }
+                }}
                 className="w-full aspect-[4/3] object-cover"
               />
               <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">

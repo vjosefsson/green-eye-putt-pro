@@ -7,6 +7,10 @@ import { toast } from "sonner";
 
 interface AnalysisResultsProps {
   imageData: string;
+  markers: {
+    ball: { x: number; y: number };
+    hole: { x: number; y: number };
+  };
   onReset: () => void;
 }
 
@@ -19,7 +23,7 @@ interface AnalysisData {
   recommendations: string[];
 }
 
-export const AnalysisResults = ({ imageData, onReset }: AnalysisResultsProps) => {
+export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResultsProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +40,7 @@ export const AnalysisResults = ({ imageData, onReset }: AnalysisResultsProps) =>
       console.log("Sending image for analysis...");
       
       const { data, error: functionError } = await supabase.functions.invoke("analyze-green", {
-        body: { imageData }
+        body: { imageData, markers }
       });
 
       if (functionError) {
@@ -70,29 +74,35 @@ export const AnalysisResults = ({ imageData, onReset }: AnalysisResultsProps) =>
             alt="Captured green" 
             className="w-full aspect-[4/3] object-cover"
           />
-          {!isAnalyzing && analysis && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none">
+            {/* Ball marker */}
+            <div
+              className="absolute w-6 h-6 rounded-full border-3 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${markers.ball.x}%`, top: `${markers.ball.y}%` }}
+            />
+            
+            {/* Hole marker */}
+            <div
+              className="absolute w-6 h-6 rounded-full border-3 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${markers.hole.x}%`, top: `${markers.hole.y}%` }}
+            />
+            
+            {/* Putting line */}
+            {!isAnalyzing && analysis && (
               <svg className="w-full h-full absolute inset-0" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <line 
-                  x1="50" 
-                  y1="80" 
-                  x2="45" 
-                  y2="20" 
+                  x1={markers.ball.x} 
+                  y1={markers.ball.y} 
+                  x2={markers.hole.x} 
+                  y2={markers.hole.y} 
                   stroke="hsl(var(--accent))" 
-                  strokeWidth="2" 
-                  strokeDasharray="5,5"
-                  className="drop-shadow-lg"
-                />
-                <circle 
-                  cx="45" 
-                  cy="20" 
-                  r="3" 
-                  fill="hsl(var(--accent))"
+                  strokeWidth="0.5" 
+                  strokeDasharray="2,2"
                   className="drop-shadow-lg"
                 />
               </svg>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="p-6 space-y-4 bg-card">

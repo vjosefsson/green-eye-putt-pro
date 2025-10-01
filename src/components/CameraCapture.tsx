@@ -48,19 +48,59 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
     // Otherwise use browser camera API
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }, // Use back camera on mobile
-        audio: false,
-      });
+      console.log("Requesting camera access...");
+      
+      // Try with environment camera first, fallback to any camera
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false,
+        });
+        console.log("Camera access granted with environment camera");
+      } catch (error) {
+        console.log("Environment camera not available, trying any camera...");
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+        console.log("Camera access granted with default camera");
+      }
       
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        const video = videoRef.current;
+        
+        // Add event listeners for better mobile support
+        video.onloadedmetadata = () => {
+          console.log("Video metadata loaded");
+          video.play()
+            .then(() => {
+              console.log("Video playing successfully");
+              setIsCameraActive(true);
+            })
+            .catch((err) => {
+              console.error("Error playing video:", err);
+              // Try to play again after user interaction
+              setIsCameraActive(true);
+            });
+        };
+        
+        video.onerror = (err) => {
+          console.error("Video element error:", err);
+          alert("Unable to display camera feed. Please try again.");
+        };
+        
+        video.srcObject = mediaStream;
         setStream(mediaStream);
-        setIsCameraActive(true);
+        console.log("Video source set");
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      alert("Unable to access camera. Please ensure camera permissions are granted.");
+      alert("Unable to access camera. Please ensure camera permissions are granted and try again.");
     }
   };
 

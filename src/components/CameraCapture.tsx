@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Camera, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Capacitor } from "@capacitor/core";
+import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -12,8 +14,39 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+
+  useEffect(() => {
+    setIsNative(Capacitor.isNativePlatform());
+  }, []);
+
+  const captureWithNativeCamera = async () => {
+    try {
+      const image = await CapCamera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+      });
+
+      if (image.dataUrl) {
+        onCapture(image.dataUrl);
+      }
+    } catch (error) {
+      console.error("Error capturing with native camera:", error);
+      alert("Unable to access camera. Please ensure camera permissions are granted.");
+    }
+  };
 
   const startCamera = async () => {
+    // If running as a native app, use native camera
+    if (isNative) {
+      await captureWithNativeCamera();
+      return;
+    }
+
+    // Otherwise use browser camera API
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }, // Use back camera on mobile

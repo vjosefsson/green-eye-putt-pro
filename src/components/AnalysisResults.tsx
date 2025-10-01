@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RotateCcw, Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AnalysisResultsProps {
   imageData: string;
@@ -22,36 +24,38 @@ export const AnalysisResults = ({ imageData, onReset }: AnalysisResultsProps) =>
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     analyzeGreen();
-  });
+  }, []);
 
   const analyzeGreen = async () => {
     setIsAnalyzing(true);
     setError(null);
     
     try {
-      // TODO: Replace with actual API call to edge function
-      // Simulating API call for now
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log("Sending image for analysis...");
       
-      // Mock analysis data
-      setAnalysis({
-        puttingLine: {
-          direction: "Aim 6 inches left of the cup",
-          break: "Right-to-left break, approximately 8 inches",
-          confidence: "High confidence (85%)",
-        },
-        recommendations: [
-          "The green slopes from right to left",
-          "Hit with medium pace to account for the break",
-          "Ball will break more in the final third",
-          "Consider the grain running left to right",
-        ],
+      const { data, error: functionError } = await supabase.functions.invoke("analyze-green", {
+        body: { imageData }
       });
+
+      if (functionError) {
+        throw functionError;
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      console.log("Analysis received:", data);
+      setAnalysis(data);
+      toast.success("Analysis complete!");
+      
     } catch (err) {
-      setError("Failed to analyze the green. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "Failed to analyze the green. Please try again.";
+      setError(errorMessage);
       console.error("Analysis error:", err);
+      toast.error(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }

@@ -22,8 +22,8 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
     if (!imageRef.current || isDragging) return;
 
     const rect = imageRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     if (!ballPosition) {
       setBallPosition({ x, y });
@@ -80,10 +80,13 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
       return;
     }
 
-    if (touchPosition && imageRef.current && !isDragging) {
-      const rect = imageRef.current.getBoundingClientRect();
-      const x = ((touchPosition.x - (rect.left - containerRef.current!.getBoundingClientRect().left)) / rect.width) * 100;
-      const y = ((touchPosition.y - (rect.top - containerRef.current!.getBoundingClientRect().top)) / rect.height) * 100;
+    if (touchPosition && imageRef.current && containerRef.current) {
+      const imageRect = imageRef.current.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
+      
+      // Convert container coordinates to image coordinates
+      const x = touchPosition.x + containerRect.left - imageRect.left;
+      const y = touchPosition.y + containerRect.top - imageRect.top;
 
       if (!ballPosition) {
         setBallPosition({ x, y });
@@ -102,16 +105,21 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
     longPressTimerRef.current = setTimeout(() => {
       setIsDragging(true);
       setDraggedMarker(markerType);
-    }, 500);
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Haptic feedback
+      }
+    }, 300);
   };
 
   const handleMarkerDrag = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isDragging || !draggedMarker || !imageRef.current) return;
+    
+    e.preventDefault();
 
     const touch = e.touches[0];
     const rect = imageRef.current.getBoundingClientRect();
-    const x = ((touch.clientX - rect.left) / rect.width) * 100;
-    const y = ((touch.clientY - rect.top) / rect.height) * 100;
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
 
     if (draggedMarker === 'ball') {
       setBallPosition({ x, y });
@@ -121,8 +129,20 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
   };
 
   const handleConfirm = () => {
-    if (ballPosition && holePosition) {
-      onConfirm(ballPosition, holePosition);
+    if (ballPosition && holePosition && imageRef.current) {
+      const rect = imageRef.current.getBoundingClientRect();
+      
+      // Convert pixel coordinates to percentages relative to the actual image
+      const ballPercent = {
+        x: (ballPosition.x / rect.width) * 100,
+        y: (ballPosition.y / rect.height) * 100
+      };
+      const holePercent = {
+        x: (holePosition.x / rect.width) * 100,
+        y: (holePosition.y / rect.height) * 100
+      };
+      
+      onConfirm(ballPercent, holePercent);
     }
   };
 
@@ -175,19 +195,27 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
           </div>
         )}
         
-        {ballPosition && (
+        {ballPosition && imageRef.current && (
           <div
-            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${ballPosition.x}%`, top: `${ballPosition.y}%` }}
+            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2 touch-none"
+            style={{ 
+              left: `${ballPosition.x}px`,
+              top: `${ballPosition.y}px`
+            }}
             onTouchStart={(e) => handleMarkerTouchStart(e, 'ball')}
+            onContextMenu={(e) => e.preventDefault()}
           />
         )}
         
-        {holePosition && (
+        {holePosition && imageRef.current && (
           <div
-            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${holePosition.x}%`, top: `${holePosition.y}%` }}
+            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2 touch-none"
+            style={{ 
+              left: `${holePosition.x}px`,
+              top: `${holePosition.y}px`
+            }}
             onTouchStart={(e) => handleMarkerTouchStart(e, 'hole')}
+            onContextMenu={(e) => e.preventDefault()}
           />
         )}
       </div>

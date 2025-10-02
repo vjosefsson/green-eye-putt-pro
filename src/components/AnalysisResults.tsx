@@ -98,15 +98,11 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
   };
 
   const createPuttingPath = () => {
-    // Calculate scale factor from actual image to displayed image
-    const scaleX = displayDimensions.width / imageMetadata.width;
-    const scaleY = displayDimensions.height / imageMetadata.height;
-    
-    // Convert image pixel coordinates to display coordinates
-    const ballX = markers.ball.x * scaleX;
-    const ballY = markers.ball.y * scaleY;
-    const holeX = markers.hole.x * scaleX;
-    const holeY = markers.hole.y * scaleY;
+    // Markers are in percentages (0-100), convert to display coordinates
+    const ballX = (markers.ball.x / 100) * displayDimensions.width;
+    const ballY = (markers.ball.y / 100) * displayDimensions.height;
+    const holeX = (markers.hole.x / 100) * displayDimensions.width;
+    const holeY = (markers.hole.y / 100) * displayDimensions.height;
     
     // Calculate control point for bezier curve (simulate break)
     const midX = (ballX + holeX) / 2;
@@ -229,32 +225,32 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
             
             {/* Ball marker */}
             <circle
-              cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
-              cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
+              cx={(markers.ball.x / 100) * displayDimensions.width}
+              cy={(markers.ball.y / 100) * displayDimensions.height}
               r="12"
               fill="rgba(34, 197, 94, 0.3)"
               stroke="rgb(34, 197, 94)"
               strokeWidth="3"
             />
             <circle
-              cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
-              cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
+              cx={(markers.ball.x / 100) * displayDimensions.width}
+              cy={(markers.ball.y / 100) * displayDimensions.height}
               r="4"
               fill="rgb(34, 197, 94)"
             />
             
             {/* Hole marker */}
             <circle
-              cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
-              cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
+              cx={(markers.hole.x / 100) * displayDimensions.width}
+              cy={(markers.hole.y / 100) * displayDimensions.height}
               r="12"
               fill="rgba(239, 68, 68, 0.3)"
               stroke="rgb(239, 68, 68)"
               strokeWidth="3"
             />
             <circle
-              cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
-              cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
+              cx={(markers.hole.x / 100) * displayDimensions.width}
+              cy={(markers.hole.y / 100) * displayDimensions.height}
               r="4"
               fill="rgb(239, 68, 68)"
             />

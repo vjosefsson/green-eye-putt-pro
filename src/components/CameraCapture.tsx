@@ -112,9 +112,13 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     const absRoll = Math.abs(roll);
     const absPitch = Math.abs(pitch - 90);
     
-    if (absRoll < 10 && absPitch < 10) return { status: 'good', color: 'bg-green-500' };
-    if (absRoll < 20 && absPitch < 20) return { status: 'ok', color: 'bg-yellow-500' };
-    return { status: 'bad', color: 'bg-red-500' };
+    if (absRoll < 5 && absPitch < 5) {
+      return { status: 'good', color: 'bg-green-500', isLevel: true };
+    }
+    if (absRoll < 15 && absPitch < 15) {
+      return { status: 'ok', color: 'bg-yellow-500', isLevel: false };
+    }
+    return { status: 'bad', color: 'bg-red-500', isLevel: false };
   };
 
   const captureImage = async () => {
@@ -228,28 +232,42 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       {/* Main camera view with UI overlay */}
       {!showInstructions && (
         <>
-          {/* Water Level Indicator - Centered */}
+          {/* iPhone-style Level Indicator - Centered */}
           {isCameraActive && (
             <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-              <div className="relative w-[200px] h-[60px] bg-black/40 backdrop-blur-md rounded-full border border-white/20 flex items-center justify-center px-4">
-                {/* Center line */}
-                <div className="absolute w-0.5 h-8 bg-white/40 left-1/2 transform -translate-x-1/2" />
+              <div className="relative w-[280px] h-[50px] bg-black/60 backdrop-blur-lg rounded-2xl border border-white/30 flex items-center justify-center overflow-hidden">
+                {/* Gradient background track */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
                 
-                {/* Level bubble */}
-                <div 
-                  className={`absolute w-10 h-10 rounded-full transition-all duration-300 ${getLevelStatus().color} shadow-lg`}
-                  style={{
-                    left: `calc(50% + ${Math.max(-70, Math.min(70, deviceOrientation.roll * 3))}px)`,
-                    transform: 'translateX(-50%)',
-                    opacity: 0.9
-                  }}
-                />
-                
-                {/* Target marks */}
-                <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-16">
-                  <div className="w-1 h-4 bg-white/40 rounded" />
-                  <div className="w-1 h-4 bg-white/40 rounded" />
+                {/* Center crosshair lines */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-[2px] h-6 bg-white/60 rounded-full" />
                 </div>
+                
+                {/* Level bubble - moves left/right based on roll */}
+                <div 
+                  className={`absolute w-12 h-12 rounded-full transition-all duration-200 ease-out border-2 ${
+                    getLevelStatus().isLevel 
+                      ? 'border-green-400 bg-green-400/40 shadow-[0_0_20px_rgba(34,197,94,0.6)]' 
+                      : 'border-white bg-white/20'
+                  }`}
+                  style={{
+                    left: `calc(50% + ${Math.max(-100, Math.min(100, deviceOrientation.roll * 4))}px)`,
+                    transform: 'translateX(-50%)',
+                    boxShadow: getLevelStatus().isLevel 
+                      ? '0 0 20px rgba(34,197,94,0.6), inset 0 0 10px rgba(255,255,255,0.3)'
+                      : '0 0 10px rgba(255,255,255,0.3), inset 0 0 10px rgba(255,255,255,0.2)'
+                  }}
+                >
+                  {/* Inner bubble core */}
+                  <div className={`absolute inset-2 rounded-full ${
+                    getLevelStatus().isLevel ? 'bg-green-400/60' : 'bg-white/40'
+                  } backdrop-blur-sm`} />
+                </div>
+                
+                {/* Side markers */}
+                <div className="absolute left-8 w-[2px] h-3 bg-white/50 rounded-full" />
+                <div className="absolute right-8 w-[2px] h-3 bg-white/50 rounded-full" />
               </div>
             </div>
           )}

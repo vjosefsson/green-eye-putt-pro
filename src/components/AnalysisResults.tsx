@@ -38,7 +38,12 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const [displayDimensions, setDisplayDimensions] = useState({ width: 0, height: 0 });
+  const [displayDimensions, setDisplayDimensions] = useState({ 
+    width: 0, 
+    height: 0, 
+    offsetX: 0, 
+    offsetY: 0 
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -47,16 +52,45 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
 
   const handleImageLoad = () => {
     if (imageRef.current) {
+      const img = imageRef.current;
+      const rect = img.getBoundingClientRect();
+      
+      // Calculate aspect ratios
+      const imageAspect = imageMetadata.width / imageMetadata.height;
+      const containerAspect = rect.width / rect.height;
+      
+      let renderedWidth, renderedHeight, offsetX, offsetY;
+      
+      if (containerAspect > imageAspect) {
+        // Letterbox on sides (image is taller)
+        renderedHeight = rect.height;
+        renderedWidth = renderedHeight * imageAspect;
+        offsetX = (rect.width - renderedWidth) / 2;
+        offsetY = 0;
+      } else {
+        // Letterbox on top/bottom (image is wider)
+        renderedWidth = rect.width;
+        renderedHeight = renderedWidth / imageAspect;
+        offsetX = 0;
+        offsetY = (rect.height - renderedHeight) / 2;
+      }
+      
       setDisplayDimensions({
-        width: imageRef.current.clientWidth,
-        height: imageRef.current.clientHeight,
+        width: renderedWidth,
+        height: renderedHeight,
+        offsetX: offsetX,
+        offsetY: offsetY
       });
-      console.log("AnalysisResults display dimensions:", {
-        width: imageRef.current.clientWidth,
-        height: imageRef.current.clientHeight
+      
+      console.log("AnalysisResults calculated dimensions:", {
+        containerRect: { width: rect.width, height: rect.height },
+        imageAspect,
+        containerAspect,
+        rendered: { width: renderedWidth, height: renderedHeight },
+        offset: { x: offsetX, y: offsetY }
       });
       console.log("AnalysisResults image metadata:", imageMetadata);
-      console.log("AnalysisResults markers (should be image pixels):", markers);
+      console.log("AnalysisResults markers (image pixels):", markers);
     }
   };
 
@@ -134,13 +168,12 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
         
         {displayDimensions.width > 0 && (
           <svg
-            className="absolute inset-0 pointer-events-none"
+            className="absolute pointer-events-none"
             width={displayDimensions.width}
             height={displayDimensions.height}
             style={{ 
-              left: '50%', 
-              top: '50%', 
-              transform: 'translate(-50%, -50%)'
+              left: `calc(50% - ${displayDimensions.width / 2}px + ${displayDimensions.offsetX}px)`,
+              top: `calc(50% - ${displayDimensions.height / 2}px + ${displayDimensions.offsetY}px)`
             }}
           >
             <defs>

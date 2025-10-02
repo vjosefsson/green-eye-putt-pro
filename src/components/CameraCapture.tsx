@@ -32,6 +32,8 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const lastHapticStatus = useRef<string>('');
   const [isCameraLoading, setIsCameraLoading] = useState(false);
+  const [touchPosition, setTouchPosition] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showInstructions) {
@@ -156,6 +158,49 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       setHoleViewportPos({ x, y });
       Haptics.impact({ style: ImpactStyle.Medium });
     }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isCameraActive || capturedImageData || isDragging) return;
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    setTouchPosition({ x, y });
+
+    // Store viewport dimensions
+    if (!viewportDimensions) {
+      setViewportDimensions({ width: rect.width, height: rect.height });
+    }
+  };
+
+  const handleTouchMoveForMagnifier = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isCameraActive || capturedImageData || isDragging || !touchPosition) return;
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    setTouchPosition({ x, y });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isCameraActive || capturedImageData || isDragging || !touchPosition) return;
+    
+    console.log("Touch end viewport coords:", touchPosition);
+
+    if (!ballViewportPos) {
+      setBallViewportPos({ x: touchPosition.x, y: touchPosition.y });
+      Haptics.impact({ style: ImpactStyle.Medium });
+    } else if (!holeViewportPos) {
+      setHoleViewportPos({ x: touchPosition.x, y: touchPosition.y });
+      Haptics.impact({ style: ImpactStyle.Medium });
+    }
+    
+    setTouchPosition(null);
   };
 
   const handleMarkerTouchStart = (marker: 'ball' | 'hole', e: React.TouchEvent) => {
@@ -420,11 +465,58 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         </div>
       ) : (
         <div
+          ref={containerRef}
           className="absolute inset-0 cursor-crosshair bg-transparent"
           onClick={handleScreenClick}
-          onTouchMove={handleMarkerTouchMove}
+          onTouchStart={handleTouchStart}
+          onTouchMove={(e) => {
+            handleTouchMoveForMagnifier(e);
+            handleMarkerTouchMove(e);
+          }}
+          onTouchEnd={handleTouchEnd}
           style={{ zIndex: 999 }}
         >
+          {/* Magnifying glass for precise marker placement */}
+          {touchPosition && !ballViewportPos || (touchPosition && ballViewportPos && !holeViewportPos) ? (
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: `${touchPosition.x}px`,
+                top: `${touchPosition.y - 100}px`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 1002,
+              }}
+            >
+              <div className="relative w-32 h-32 rounded-full border-4 border-white/80 shadow-2xl overflow-hidden bg-black/20 backdrop-blur-sm">
+                {/* Zoomed background */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: 'url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDIwIDAgTCAwIDAgMCAyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMiIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+)',
+                    backgroundSize: '20px 20px',
+                  }}
+                />
+                {/* Crosshair */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute w-full h-0.5 bg-primary/80" />
+                  <div className="absolute w-0.5 h-full bg-primary/80" />
+                  <div className="w-3 h-3 rounded-full border-2 border-primary bg-primary/40" />
+                </div>
+                {/* Label */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm px-3 py-1 rounded-full">
+                  <span className="text-white text-xs font-medium">
+                    {!ballViewportPos ? 'Boll' : 'Hål'}
+                  </span>
+                </div>
+              </div>
+              {/* Pointer line to finger */}
+              <div 
+                className="absolute top-full left-1/2 w-0.5 bg-white/50"
+                style={{ height: '100px', transform: 'translateX(-50%)' }}
+              />
+            </div>
+          ) : null}
+
           {/* Camera loading overlay */}
           {isCameraLoading && (
             <div className="absolute inset-0 bg-black flex items-center justify-center">

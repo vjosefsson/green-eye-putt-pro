@@ -51,6 +51,12 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
         width: imageRef.current.clientWidth,
         height: imageRef.current.clientHeight,
       });
+      console.log("AnalysisResults display dimensions:", {
+        width: imageRef.current.clientWidth,
+        height: imageRef.current.clientHeight
+      });
+      console.log("AnalysisResults image metadata:", imageMetadata);
+      console.log("AnalysisResults markers (should be image pixels):", markers);
     }
   };
 

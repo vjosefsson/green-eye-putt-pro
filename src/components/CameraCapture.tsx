@@ -17,8 +17,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const [showInstructions, setShowInstructions] = useState(true);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [ballPosition, setBallPosition] = useState<{ x: number; y: number } | null>(null);
-  const [holePosition, setHolePosition] = useState<{ x: number; y: number } | null>(null);
+  // Viewport coordinates (original click positions, never modified)
+  const [ballViewportPos, setBallViewportPos] = useState<{ x: number; y: number } | null>(null);
+  const [holeViewportPos, setHoleViewportPos] = useState<{ x: number; y: number } | null>(null);
+  // Preview display coordinates (only for preview rendering)
+  const [ballPreviewPos, setBallPreviewPos] = useState<{ x: number; y: number } | null>(null);
+  const [holePreviewPos, setHolePreviewPos] = useState<{ x: number; y: number } | null>(null);
   const [capturedImageData, setCapturedImageData] = useState<string | null>(null);
   const [imageMetadata, setImageMetadata] = useState<{ width: number; height: number } | null>(null);
   const [viewportDimensions, setViewportDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -40,19 +44,34 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
   const startMotionTracking = async () => {
     try {
-      await Motion.addListener('orientation', (event) => {
-        setDeviceOrientation({
-          pitch: event.beta || 90,
-          roll: event.gamma || 0
-        });
-      });
+      // Use DeviceOrientation API directly for better compatibility
+      if (typeof DeviceOrientationEvent !== 'undefined') {
+        // Request permission for iOS 13+
+        if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+          const permission = await (DeviceOrientationEvent as any).requestPermission();
+          if (permission !== 'granted') {
+            console.log("Motion permission denied");
+            return;
+          }
+        }
+        
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
     } catch (error) {
       console.log("Motion tracking not available:", error);
     }
   };
 
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+    setDeviceOrientation({
+      pitch: event.beta || 90,
+      roll: event.gamma || 0
+    });
+  };
+
   const stopMotionTracking = async () => {
     try {
+      window.removeEventListener('deviceorientation', handleOrientation);
       await Motion.removeAllListeners();
     } catch (error) {
       console.log("Error stopping motion tracking:", error);
@@ -105,20 +124,24 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       setViewportDimensions({ width: rect.width, height: rect.height });
     }
 
-    if (!ballPosition) {
-      setBallPosition({ x, y });
-    } else if (!holePosition) {
-      setHolePosition({ x, y });
+    console.log("Click viewport coords:", { x, y, viewportDim: { width: rect.width, height: rect.height } });
+
+    if (!ballViewportPos) {
+      setBallViewportPos({ x, y });
+    } else if (!holeViewportPos) {
+      setHoleViewportPos({ x, y });
     }
   };
 
   const handleResetMarkers = () => {
-    setBallPosition(null);
-    setHolePosition(null);
+    setBallViewportPos(null);
+    setHoleViewportPos(null);
+    setBallPreviewPos(null);
+    setHolePreviewPos(null);
   };
 
   const captureImage = async () => {
-    if (!ballPosition || !holePosition) return;
+    if (!ballViewportPos || !holeViewportPos) return;
 
     try {
       setIsLoading(true);
@@ -144,21 +167,26 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   const confirmCapture = () => {
-    if (!capturedImageData || !imageMetadata || !ballPosition || !holePosition || !viewportDimensions) return;
+    if (!capturedImageData || !imageMetadata || !ballViewportPos || !holeViewportPos || !viewportDimensions) return;
 
-    // Convert viewport coordinates to image coordinates
+    // Clean conversion: viewport pixels → image pixels
     const scaleX = imageMetadata.width / viewportDimensions.width;
     const scaleY = imageMetadata.height / viewportDimensions.height;
     
     const ballImageCoords = {
-      x: ballPosition.x * scaleX,
-      y: ballPosition.y * scaleY
+      x: ballViewportPos.x * scaleX,
+      y: ballViewportPos.y * scaleY
     };
     
     const holeImageCoords = {
-      x: holePosition.x * scaleX,
-      y: holePosition.y * scaleY
+      x: holeViewportPos.x * scaleX,
+      y: holeViewportPos.y * scaleY
     };
+
+    console.log("Viewport dimensions:", viewportDimensions);
+    console.log("Image metadata:", imageMetadata);
+    console.log("Ball viewport→image:", ballViewportPos, "→", ballImageCoords);
+    console.log("Hole viewport→image:", holeViewportPos, "→", holeImageCoords);
 
     onCapture(capturedImageData, ballImageCoords, holeImageCoords, imageMetadata);
   };
@@ -244,38 +272,37 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                   const img = e.currentTarget;
                   const rect = img.getBoundingClientRect();
                   
-                  if (ballPosition && viewportDimensions) {
-                    const scaleX = imageMetadata.width / viewportDimensions.width;
-                    const scaleY = imageMetadata.height / viewportDimensions.height;
-                    const displayScaleX = rect.width / imageMetadata.width;
-                    const displayScaleY = rect.height / imageMetadata.height;
+                  // Calculate preview positions from viewport coordinates
+                  if (ballViewportPos && viewportDimensions) {
+                    // viewport → image → preview display
+                    const imageX = (ballViewportPos.x / viewportDimensions.width) * imageMetadata.width;
+                    const imageY = (ballViewportPos.y / viewportDimensions.height) * imageMetadata.height;
                     
-                    setBallPosition({
-                      x: (ballPosition.x * scaleX) * displayScaleX,
-                      y: (ballPosition.y * scaleY) * displayScaleY
-                    });
+                    const previewX = (imageX / imageMetadata.width) * rect.width;
+                    const previewY = (imageY / imageMetadata.height) * rect.height;
+                    
+                    setBallPreviewPos({ x: previewX, y: previewY });
                   }
                   
-                  if (holePosition && viewportDimensions) {
-                    const scaleX = imageMetadata.width / viewportDimensions.width;
-                    const scaleY = imageMetadata.height / viewportDimensions.height;
-                    const displayScaleX = rect.width / imageMetadata.width;
-                    const displayScaleY = rect.height / imageMetadata.height;
+                  if (holeViewportPos && viewportDimensions) {
+                    // viewport → image → preview display
+                    const imageX = (holeViewportPos.x / viewportDimensions.width) * imageMetadata.width;
+                    const imageY = (holeViewportPos.y / viewportDimensions.height) * imageMetadata.height;
                     
-                    setHolePosition({
-                      x: (holePosition.x * scaleX) * displayScaleX,
-                      y: (holePosition.y * scaleY) * displayScaleY
-                    });
+                    const previewX = (imageX / imageMetadata.width) * rect.width;
+                    const previewY = (imageY / imageMetadata.height) * rect.height;
+                    
+                    setHolePreviewPos({ x: previewX, y: previewY });
                   }
                 }}
               />
               
-              {ballPosition && (
+              {ballPreviewPos && (
                 <div
                   className="absolute w-8 h-8"
                   style={{
-                    left: `${ballPosition.x}px`,
-                    top: `${ballPosition.y}px`,
+                    left: `${ballPreviewPos.x}px`,
+                    top: `${ballPreviewPos.y}px`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
@@ -286,12 +313,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 </div>
               )}
 
-              {holePosition && (
+              {holePreviewPos && (
                 <div
                   className="absolute w-8 h-8"
                   style={{
-                    left: `${holePosition.x}px`,
-                    top: `${holePosition.y}px`,
+                    left: `${holePreviewPos.x}px`,
+                    top: `${holePreviewPos.y}px`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
@@ -320,8 +347,10 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 onClick={() => {
                   setCapturedImageData(null);
                   setImageMetadata(null);
-                  setBallPosition(null);
-                  setHolePosition(null);
+                  setBallViewportPos(null);
+                  setHoleViewportPos(null);
+                  setBallPreviewPos(null);
+                  setHolePreviewPos(null);
                   setViewportDimensions(null);
                   startCamera();
                 }}
@@ -339,9 +368,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
           onClick={handleScreenClick}
           style={{ zIndex: 999 }}
         >
-          {/* Level indicator at top */}
+          {/* Level indicator at top - moved down to avoid Dynamic Island */}
           {isCameraActive && (
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50">
               <div className={`${getLevelStatus().color} px-6 py-3 rounded-full backdrop-blur-md bg-opacity-90 shadow-lg transition-all duration-300`}>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1">
@@ -365,7 +394,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             </div>
           )}
 
-          {!ballPosition && !holePosition && isCameraActive && (
+          {!ballViewportPos && !holeViewportPos && isCameraActive && (
             <div className="absolute bottom-32 left-0 right-0 px-6 pointer-events-none">
               <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20 max-w-sm mx-auto">
                 <p className="text-white text-center font-medium">Tryck för att markera bollen</p>
@@ -374,7 +403,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             </div>
           )}
 
-          {ballPosition && !holePosition && isCameraActive && (
+          {ballViewportPos && !holeViewportPos && isCameraActive && (
             <div className="absolute bottom-32 left-0 right-0 px-6 pointer-events-none">
               <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20 max-w-sm mx-auto">
                 <p className="text-white text-center font-medium">Tryck nu för att markera hålet</p>
@@ -382,12 +411,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             </div>
           )}
 
-          {ballPosition && (
+          {ballViewportPos && (
             <div
               className="absolute w-8 h-8 pointer-events-none"
               style={{
-                left: `${ballPosition.x}px`,
-                top: `${ballPosition.y}px`,
+                left: `${ballViewportPos.x}px`,
+                top: `${ballViewportPos.y}px`,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 1000,
               }}
@@ -399,12 +428,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             </div>
           )}
 
-          {holePosition && (
+          {holeViewportPos && (
             <div
               className="absolute w-8 h-8 pointer-events-none"
               style={{
-                left: `${holePosition.x}px`,
-                top: `${holePosition.y}px`,
+                left: `${holeViewportPos.x}px`,
+                top: `${holeViewportPos.y}px`,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 1000,
               }}
@@ -417,7 +446,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
           )}
 
           <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-auto" style={{ zIndex: 1001 }}>
-            {ballPosition && holePosition && (
+            {ballViewportPos && holeViewportPos && (
               <>
                 <Button
                   onClick={captureImage}

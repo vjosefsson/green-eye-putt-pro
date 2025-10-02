@@ -112,9 +112,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     const absRoll = Math.abs(roll);
     const absPitch = Math.abs(pitch - 90);
     
-    if (absRoll < 10 && absPitch < 10) return { status: 'good', color: 'bg-green-500', text: 'Perfekt vinkel!' };
-    if (absRoll < 20 && absPitch < 20) return { status: 'ok', color: 'bg-yellow-500', text: 'Justera lite' };
-    return { status: 'bad', color: 'bg-red-500', text: 'Justera telefonen' };
+    if (absRoll < 10 && absPitch < 10) return { status: 'good', color: 'bg-green-500' };
+    if (absRoll < 20 && absPitch < 20) return { status: 'ok', color: 'bg-yellow-500' };
+    return { status: 'bad', color: 'bg-red-500' };
   };
 
   const captureImage = async () => {
@@ -214,7 +214,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-transparent">
+    <div className="fixed inset-0 z-0">
       {/* Camera loading indicator */}
       {isStartingCamera && (
         <div className="absolute inset-0 bg-black flex items-center justify-center z-50">
@@ -225,57 +225,67 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         </div>
       )}
 
-      {/* Main camera view */}
+      {/* Main camera view with UI overlay */}
       {!showInstructions && (
-        <div className="fixed inset-0 bg-black" style={{ zIndex: 999 }}>
-          {/* Level indicator */}
+        <>
+          {/* Water Level Indicator - Centered */}
           {isCameraActive && (
-            <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-10">
-              <div className={`${getLevelStatus().color} px-6 py-3 rounded-full shadow-lg`}>
-                <p className="text-white font-semibold text-sm">{getLevelStatus().text}</p>
+            <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+              <div className="relative w-[200px] h-[60px] bg-black/40 backdrop-blur-md rounded-full border border-white/20 flex items-center justify-center px-4">
+                {/* Center line */}
+                <div className="absolute w-0.5 h-8 bg-white/40 left-1/2 transform -translate-x-1/2" />
+                
+                {/* Level bubble */}
+                <div 
+                  className={`absolute w-10 h-10 rounded-full transition-all duration-300 ${getLevelStatus().color} shadow-lg`}
+                  style={{
+                    left: `calc(50% + ${Math.max(-70, Math.min(70, deviceOrientation.roll * 3))}px)`,
+                    transform: 'translateX(-50%)',
+                    opacity: 0.9
+                  }}
+                />
+                
+                {/* Target marks */}
+                <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-16">
+                  <div className="w-1 h-4 bg-white/40 rounded" />
+                  <div className="w-1 h-4 bg-white/40 rounded" />
+                </div>
               </div>
             </div>
           )}
 
-          {/* Camera controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
-            <div className="flex items-center justify-between gap-4">
-              <Button
-                variant="outline"
-                size="icon"
+          {/* Camera controls - Bottom */}
+          <div className="fixed bottom-8 left-0 right-0 px-8 z-10">
+            <div className="flex items-center justify-between">
+              {/* Left - Cancel button */}
+              <button 
                 onClick={async () => {
                   await stopCamera();
                   window.location.href = '/';
                 }}
-                className="rounded-full w-12 h-12"
+                className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-black/60 transition-colors"
               >
-                <X className="w-6 h-6" />
-              </Button>
-
-              <Button
-                variant="camera"
-                size="lg"
+                <X className="w-6 h-6 text-white" />
+              </button>
+              
+              {/* Center - Snapchat-style capture button */}
+              <button 
                 onClick={captureImage}
                 disabled={isCapturing}
-                className="flex-1 max-w-xs"
+                className="relative flex-shrink-0 disabled:opacity-50"
               >
-                {isCapturing ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                    Capturing...
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-6 h-6 mr-2" />
-                    Take Photo
-                  </>
-                )}
-              </Button>
-
-              <div className="w-12 h-12"></div>
+                {/* Outer ring */}
+                <div className="w-20 h-20 rounded-full border-4 border-white/90 flex items-center justify-center">
+                  {/* Inner circle */}
+                  <div className={`w-16 h-16 rounded-full bg-white ${isCapturing ? 'scale-90' : ''} transition-transform duration-150`} />
+                </div>
+              </button>
+              
+              {/* Right - Placeholder */}
+              <div className="w-12 h-12" />
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

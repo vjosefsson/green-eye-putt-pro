@@ -29,11 +29,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       
       await CameraPreview.start({
         position: 'rear',
-        parent: 'cameraPreview',
-        className: 'cameraPreview',
-        toBack: true,
         enableHighResolution: true,
         disableAudio: true,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        x: 0,
+        y: 0,
       });
       
       console.log("Camera preview started");
@@ -93,19 +94,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black">
-      {/* Camera preview container */}
-      <div 
-        id="cameraPreview" 
-        className="absolute inset-0"
-        style={{ zIndex: 0 }}
-      />
-      
+    <div className="fixed inset-0">
       {/* Overlay UI */}
       <div 
         className="absolute inset-0 cursor-crosshair"
         onClick={handleScreenClick}
-        style={{ zIndex: 10 }}
+        style={{ zIndex: 999 }}
       >
         {isStartingCamera && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">

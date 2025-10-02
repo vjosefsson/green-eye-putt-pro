@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { CameraPreview } from "@capacitor-community/camera-preview";
+import { Motion } from "@capacitor/motion";
 import { Button } from "./ui/button";
-import { X, Camera, RotateCcw, ChevronRight } from "lucide-react";
+import { X, Camera, RotateCcw, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, ChevronRight as ChevronRightArrow } from "lucide-react";
 
 interface CameraCaptureProps {
   onCapture: (
@@ -20,18 +21,53 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const [holePosition, setHolePosition] = useState<{ x: number; y: number } | null>(null);
   const [capturedImageData, setCapturedImageData] = useState<string | null>(null);
   const [imageMetadata, setImageMetadata] = useState<{ width: number; height: number } | null>(null);
+  const [viewportDimensions, setViewportDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [deviceOrientation, setDeviceOrientation] = useState<{ pitch: number; roll: number }>({ pitch: 90, roll: 0 });
 
   useEffect(() => {
     if (!showInstructions) {
       startCamera();
+      startMotionTracking();
       document.body.classList.add('camera-active');
     }
     
     return () => {
       stopCamera();
+      stopMotionTracking();
       document.body.classList.remove('camera-active');
     };
   }, [showInstructions]);
+
+  const startMotionTracking = async () => {
+    try {
+      await Motion.addListener('orientation', (event) => {
+        setDeviceOrientation({
+          pitch: event.beta || 90,
+          roll: event.gamma || 0
+        });
+      });
+    } catch (error) {
+      console.log("Motion tracking not available:", error);
+    }
+  };
+
+  const stopMotionTracking = async () => {
+    try {
+      await Motion.removeAllListeners();
+    } catch (error) {
+      console.log("Error stopping motion tracking:", error);
+    }
+  };
+
+  const getLevelStatus = () => {
+    const { pitch, roll } = deviceOrientation;
+    const absRoll = Math.abs(roll);
+    const absPitch = Math.abs(pitch - 90);
+    
+    if (absRoll < 10 && absPitch < 10) return { status: 'good', color: 'bg-green-500', text: 'Perfekt vinkel!' };
+    if (absRoll < 20 && absPitch < 20) return { status: 'ok', color: 'bg-yellow-500', text: 'Justera lite' };
+    return { status: 'bad', color: 'bg-red-500', text: 'Justera telefonen' };
+  };
 
   const startCamera = async () => {
     try {
@@ -64,6 +100,11 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Store viewport dimensions on first click
+    if (!viewportDimensions) {
+      setViewportDimensions({ width: rect.width, height: rect.height });
+    }
+
     if (!ballPosition) {
       setBallPosition({ x, y });
     } else if (!holePosition) {
@@ -91,8 +132,6 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         const metadata = { width: img.width, height: img.height };
         setImageMetadata(metadata);
         setCapturedImageData(imageDataUrl);
-        
-        // Now we have the image loaded, show preview with markers
         setIsLoading(false);
       };
       
@@ -105,17 +144,11 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   const confirmCapture = () => {
-    if (!capturedImageData || !imageMetadata || !ballPosition || !holePosition) return;
+    if (!capturedImageData || !imageMetadata || !ballPosition || !holePosition || !viewportDimensions) return;
 
-    // Get the preview container dimensions
-    const previewContainer = document.getElementById('image-preview');
-    if (!previewContainer) return;
-
-    const rect = previewContainer.getBoundingClientRect();
-    
-    // Convert screen pixel coordinates to image pixel coordinates
-    const scaleX = imageMetadata.width / rect.width;
-    const scaleY = imageMetadata.height / rect.height;
+    // Convert viewport coordinates to image coordinates
+    const scaleX = imageMetadata.width / viewportDimensions.width;
+    const scaleY = imageMetadata.height / viewportDimensions.height;
     
     const ballImageCoords = {
       x: ballPosition.x * scaleX,
@@ -158,14 +191,24 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 <span className="text-primary font-bold">2</span>
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Håll kameran i ögonhöjd</h3>
-                <p className="text-sm text-muted-foreground">Undvik att luta telefonen för mycket - håll den så rakt som möjligt</p>
+                <h3 className="font-semibold text-foreground">Håll telefonen rakt</h3>
+                <p className="text-sm text-muted-foreground">En nivå-indikator guidar dig när kameran är aktiv. Håll telefonen parallellt med marken.</p>
               </div>
             </div>
 
             <div className="flex gap-3 items-start">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-primary font-bold">3</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Optimalt avstånd</h3>
+                <p className="text-sm text-muted-foreground">Stå cirka 2-3 meter från bollen för att få med hela putting-linjen.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                <span className="text-primary font-bold">4</span>
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">Inkludera både boll och hål</h3>
@@ -197,6 +240,34 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 src={capturedImageData} 
                 alt="Captured" 
                 className="max-w-full max-h-[80vh] object-contain"
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  const rect = img.getBoundingClientRect();
+                  
+                  if (ballPosition && viewportDimensions) {
+                    const scaleX = imageMetadata.width / viewportDimensions.width;
+                    const scaleY = imageMetadata.height / viewportDimensions.height;
+                    const displayScaleX = rect.width / imageMetadata.width;
+                    const displayScaleY = rect.height / imageMetadata.height;
+                    
+                    setBallPosition({
+                      x: (ballPosition.x * scaleX) * displayScaleX,
+                      y: (ballPosition.y * scaleY) * displayScaleY
+                    });
+                  }
+                  
+                  if (holePosition && viewportDimensions) {
+                    const scaleX = imageMetadata.width / viewportDimensions.width;
+                    const scaleY = imageMetadata.height / viewportDimensions.height;
+                    const displayScaleX = rect.width / imageMetadata.width;
+                    const displayScaleY = rect.height / imageMetadata.height;
+                    
+                    setHolePosition({
+                      x: (holePosition.x * scaleX) * displayScaleX,
+                      y: (holePosition.y * scaleY) * displayScaleY
+                    });
+                  }
+                }}
               />
               
               {ballPosition && (
@@ -251,6 +322,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                   setImageMetadata(null);
                   setBallPosition(null);
                   setHolePosition(null);
+                  setViewportDimensions(null);
                   startCamera();
                 }}
                 variant="outline"
@@ -267,28 +339,45 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
           onClick={handleScreenClick}
           style={{ zIndex: 999 }}
         >
+          {/* Level indicator at top */}
+          {isCameraActive && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50">
+              <div className={`${getLevelStatus().color} px-6 py-3 rounded-full backdrop-blur-md bg-opacity-90 shadow-lg transition-all duration-300`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    {deviceOrientation.roll < -10 && <ChevronLeft className="w-4 h-4 text-white" />}
+                    {deviceOrientation.roll > 10 && <ChevronRightArrow className="w-4 h-4 text-white" />}
+                    {deviceOrientation.pitch < 80 && <ChevronUp className="w-4 h-4 text-white" />}
+                    {deviceOrientation.pitch > 100 && <ChevronDown className="w-4 h-4 text-white" />}
+                  </div>
+                  <span className="text-white font-medium text-sm">{getLevelStatus().text}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
               <div className="text-center space-y-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-                <p className="text-white font-medium">Capturing image...</p>
+                <p className="text-white font-medium">Tar bild...</p>
               </div>
             </div>
           )}
 
           {!ballPosition && !holePosition && isCameraActive && (
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center space-y-4 pointer-events-none">
-              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <p className="text-white text-lg font-medium">Tryck för att markera bollen</p>
-                <p className="text-white/70 text-sm mt-2">Första tryck = boll, Andra = hål</p>
+            <div className="absolute bottom-32 left-0 right-0 px-6 pointer-events-none">
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20 max-w-sm mx-auto">
+                <p className="text-white text-center font-medium">Tryck för att markera bollen</p>
+                <p className="text-white/70 text-sm mt-1 text-center">Första tryck = boll, Andra = hål</p>
               </div>
             </div>
           )}
 
           {ballPosition && !holePosition && isCameraActive && (
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <p className="text-white text-lg font-medium">Tryck nu för att markera hålet</p>
+            <div className="absolute bottom-32 left-0 right-0 px-6 pointer-events-none">
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20 max-w-sm mx-auto">
+                <p className="text-white text-center font-medium">Tryck nu för att markera hålet</p>
               </div>
             </div>
           )}

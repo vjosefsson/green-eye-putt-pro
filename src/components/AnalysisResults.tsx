@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { RotateCcw, Loader2, TrendingUp } from "lucide-react";
+import { RotateCcw, Loader2, TrendingUp, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 interface AnalysisResultsProps {
   imageData: string;
@@ -32,6 +39,7 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
   const [error, setError] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [displayDimensions, setDisplayDimensions] = useState({ width: 0, height: 0 });
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     analyzeGreen();
@@ -94,10 +102,10 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
 
       console.log("Analysis received:", data);
       setAnalysis(data);
-      toast.success("Analysis complete!");
+      toast.success("Analys klar!");
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to analyze the green. Please try again.";
+      const errorMessage = err instanceof Error ? err.message : "Kunde inte analysera green. Försök igen.";
       setError(errorMessage);
       console.error("Analysis error:", err);
       toast.error(errorMessage);
@@ -107,176 +115,188 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-b from-background to-muted flex flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="relative w-full bg-black">
-          <img 
-            ref={imageRef}
-            src={imageData} 
-            alt="Captured green" 
-            className="w-full object-contain max-h-[40vh]"
-            onLoad={handleImageLoad}
-          />
-          {displayDimensions.width > 0 && (
-            <svg
-              className="absolute inset-0 pointer-events-none"
-              width={displayDimensions.width}
-              height={displayDimensions.height}
-              style={{ 
-                left: '50%', 
-                top: '50%', 
-                transform: 'translate(-50%, -50%)'
-              }}
-            >
-              <defs>
-                <linearGradient id="puttLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
-                  <stop offset="50%" style={{ stopColor: 'rgba(255, 215, 0, 0.95)', stopOpacity: 0.95 }} />
-                  <stop offset="100%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              
-              {/* Putting line with glow effect - PuttView style */}
-              {!isAnalyzing && analysis && (
-                <>
-                  {/* Shadow/glow layer */}
-                  <path
-                    d={createPuttingPath()}
-                    stroke="rgba(255, 215, 0, 0.6)"
-                    strokeWidth="12"
-                    fill="none"
-                    filter="url(#glow)"
-                    className="animate-pulse"
-                  />
-                  {/* Main line */}
-                  <path
-                    d={createPuttingPath()}
-                    stroke="url(#puttLineGradient)"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                  {/* Animated dash overlay */}
-                  <path
-                    d={createPuttingPath()}
-                    stroke="rgba(255, 255, 255, 0.8)"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeDasharray="8 8"
-                    strokeLinecap="round"
-                    className="animate-[dash_1s_linear_infinite]"
-                  />
-                </>
-              )}
-              
-              {/* Ball marker */}
-              <circle
-                cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
-                cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
-                r="12"
-                fill="rgba(34, 197, 94, 0.3)"
-                stroke="rgb(34, 197, 94)"
-                strokeWidth="3"
-              />
-              <circle
-                cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
-                cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
-                r="4"
-                fill="rgb(34, 197, 94)"
-              />
-              
-              {/* Hole marker */}
-              <circle
-                cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
-                cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
-                r="12"
-                fill="rgba(239, 68, 68, 0.3)"
-                stroke="rgb(239, 68, 68)"
-                strokeWidth="3"
-              />
-              <circle
-                cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
-                cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
-                r="4"
-                fill="rgb(239, 68, 68)"
-              />
-            </svg>
-          )}
-        </div>
-
-        <div className="p-6 space-y-4">
-          {isAnalyzing ? (
-            <div className="text-center py-8">
-              <Loader2 className="w-12 h-12 mx-auto mb-4 text-primary animate-spin" />
-              <h3 className="text-lg font-semibold mb-2">Analyzing Green...</h3>
-              <p className="text-sm text-muted-foreground">
-                Our AI is reading the slope and calculating the optimal putting line
-              </p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <p className="text-destructive mb-4">{error}</p>
-              <Button variant="default" onClick={analyzeGreen}>
-                Try Again
-              </Button>
-            </div>
-          ) : analysis ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <h3 className="text-xl font-bold">Putting Line Analysis</h3>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <h4 className="font-semibold text-sm text-primary mb-1">Aim Point</h4>
-                  <p className="text-foreground">{analysis.puttingLine.direction}</p>
-                </div>
-
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <h4 className="font-semibold text-sm text-primary mb-1">Break Analysis</h4>
-                  <p className="text-foreground">{analysis.puttingLine.break}</p>
-                </div>
-
-                <div className="p-4 rounded-lg bg-accent/10 border border-accent/30">
-                  <h4 className="font-semibold text-sm text-accent-foreground mb-1">Confidence</h4>
-                  <p className="text-foreground">{analysis.puttingLine.confidence}</p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-border">
-                <h4 className="font-semibold text-sm mb-3">Recommendations</h4>
-                <ul className="space-y-2">
-                  {analysis.recommendations.map((rec, idx) => (
-                    <li key={idx} className="flex gap-2 text-sm text-muted-foreground">
-                      <span className="text-primary">•</span>
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ) : null}
-
-          <Button 
-            variant="outline" 
-            size="lg" 
-            onClick={onReset}
-            className="w-full mt-4"
-            disabled={isAnalyzing}
+    <div className="fixed inset-0 bg-black flex flex-col">
+      {/* Full-screen image with overlay */}
+      <div className="absolute inset-0">
+        <img 
+          ref={imageRef}
+          src={imageData} 
+          alt="Golf green analysis" 
+          className="w-full h-full object-contain"
+          onLoad={handleImageLoad}
+        />
+        
+        {displayDimensions.width > 0 && (
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={displayDimensions.width}
+            height={displayDimensions.height}
+            style={{ 
+              left: '50%', 
+              top: '50%', 
+              transform: 'translate(-50%, -50%)'
+            }}
           >
-            <RotateCcw className="mr-2" />
-            Analyze Another Green
-          </Button>
-        </div>
+            <defs>
+              <linearGradient id="puttLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
+                <stop offset="50%" style={{ stopColor: 'rgba(255, 215, 0, 0.95)', stopOpacity: 0.95 }} />
+                <stop offset="100%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
+              </linearGradient>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            
+            {/* Putting line with glow effect */}
+            {!isAnalyzing && analysis && (
+              <>
+                {/* Shadow/glow layer */}
+                <path
+                  d={createPuttingPath()}
+                  stroke="rgba(255, 215, 0, 0.6)"
+                  strokeWidth="12"
+                  fill="none"
+                  filter="url(#glow)"
+                  className="animate-pulse"
+                />
+                {/* Main line */}
+                <path
+                  d={createPuttingPath()}
+                  stroke="url(#puttLineGradient)"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                {/* Animated dash overlay */}
+                <path
+                  d={createPuttingPath()}
+                  stroke="rgba(255, 255, 255, 0.8)"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeDasharray="8 8"
+                  strokeLinecap="round"
+                  className="animate-[dash_1s_linear_infinite]"
+                />
+              </>
+            )}
+            
+            {/* Ball marker */}
+            <circle
+              cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
+              cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
+              r="12"
+              fill="rgba(34, 197, 94, 0.3)"
+              stroke="rgb(34, 197, 94)"
+              strokeWidth="3"
+            />
+            <circle
+              cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
+              cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
+              r="4"
+              fill="rgb(34, 197, 94)"
+            />
+            
+            {/* Hole marker */}
+            <circle
+              cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
+              cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
+              r="12"
+              fill="rgba(239, 68, 68, 0.3)"
+              stroke="rgb(239, 68, 68)"
+              strokeWidth="3"
+            />
+            <circle
+              cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
+              cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
+              r="4"
+              fill="rgb(239, 68, 68)"
+            />
+          </svg>
+        )}
       </div>
+
+      {/* Swipeable bottom drawer */}
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DrawerTrigger asChild>
+          <button className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-background/95 backdrop-blur-md px-6 py-3 rounded-full shadow-lg border border-border flex items-center gap-2 hover:bg-background/100 transition-colors">
+            <ChevronUp className="h-5 w-5" />
+            <span className="font-medium">Visa analys</span>
+          </button>
+        </DrawerTrigger>
+        
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>Putting-analys</DrawerTitle>
+          </DrawerHeader>
+          
+          <div className="overflow-y-auto px-4 pb-6 space-y-4">
+            {isAnalyzing ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">Analyserar green...</p>
+              </div>
+            ) : error ? (
+              <div className="space-y-4">
+                <p className="text-destructive text-center">{error}</p>
+                <Button onClick={analyzeGreen} className="w-full">
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Försök igen
+                </Button>
+              </div>
+            ) : analysis ? (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  <h3 className="text-xl font-bold">Putting Line Analysis</h3>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <h4 className="font-semibold text-sm text-primary mb-1">Riktpunkt</h4>
+                    <p className="text-foreground">{analysis.puttingLine.direction}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <h4 className="font-semibold text-sm text-primary mb-1">Break-analys</h4>
+                    <p className="text-foreground">{analysis.puttingLine.break}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-accent/10 border border-accent/30">
+                    <h4 className="font-semibold text-sm text-accent-foreground mb-1">Säkerhet</h4>
+                    <p className="text-foreground">{analysis.puttingLine.confidence}</p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <h4 className="font-semibold text-sm mb-3">Rekommendationer</h4>
+                  <ul className="space-y-2">
+                    {analysis.recommendations.map((rec, idx) => (
+                      <li key={idx} className="flex gap-2 text-sm text-muted-foreground">
+                        <span className="text-primary">•</span>
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={onReset} 
+                  variant="outline" 
+                  className="w-full mt-4"
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Analysera en annan green
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };

@@ -53,26 +53,29 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
   const handleImageLoad = () => {
     if (imageRef.current) {
       const img = imageRef.current;
-      const rect = img.getBoundingClientRect();
+      const container = img.parentElement;
+      if (!container) return;
+      
+      const containerRect = container.getBoundingClientRect();
       
       // Calculate aspect ratios
       const imageAspect = imageMetadata.width / imageMetadata.height;
-      const containerAspect = rect.width / rect.height;
+      const containerAspect = containerRect.width / containerRect.height;
       
       let renderedWidth, renderedHeight, offsetX, offsetY;
       
       if (containerAspect > imageAspect) {
-        // Letterbox on sides (image is taller)
-        renderedHeight = rect.height;
+        // Letterbox on sides (image is taller relative to container)
+        renderedHeight = containerRect.height;
         renderedWidth = renderedHeight * imageAspect;
-        offsetX = (rect.width - renderedWidth) / 2;
+        offsetX = (containerRect.width - renderedWidth) / 2;
         offsetY = 0;
       } else {
-        // Letterbox on top/bottom (image is wider)
-        renderedWidth = rect.width;
+        // Letterbox on top/bottom (image is wider relative to container)
+        renderedWidth = containerRect.width;
         renderedHeight = renderedWidth / imageAspect;
         offsetX = 0;
-        offsetY = (rect.height - renderedHeight) / 2;
+        offsetY = (containerRect.height - renderedHeight) / 2;
       }
       
       setDisplayDimensions({
@@ -83,7 +86,7 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
       });
       
       console.log("AnalysisResults calculated dimensions:", {
-        containerRect: { width: rect.width, height: rect.height },
+        containerRect: { width: containerRect.width, height: containerRect.height },
         imageAspect,
         containerAspect,
         rendered: { width: renderedWidth, height: renderedHeight },
@@ -172,8 +175,8 @@ export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: 
             width={displayDimensions.width}
             height={displayDimensions.height}
             style={{ 
-              left: `calc(50% - ${displayDimensions.width / 2}px + ${displayDimensions.offsetX}px)`,
-              top: `calc(50% - ${displayDimensions.height / 2}px + ${displayDimensions.offsetY}px)`
+              left: `${displayDimensions.offsetX}px`,
+              top: `${displayDimensions.offsetY}px`
             }}
           >
             <defs>

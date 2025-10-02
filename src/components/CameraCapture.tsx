@@ -163,6 +163,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isCameraActive || capturedImageData || isDragging) return;
     
+    // Prevent text selection on long press
+    e.preventDefault();
+    
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const x = touch.clientX - rect.left;
@@ -178,6 +181,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
   const handleTouchMoveForMagnifier = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isCameraActive || capturedImageData || isDragging || !touchPosition) return;
+    
+    // Prevent scrolling and text selection
+    e.preventDefault();
     
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -474,10 +480,15 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             handleMarkerTouchMove(e);
           }}
           onTouchEnd={handleTouchEnd}
-          style={{ zIndex: 999 }}
+          style={{ 
+            zIndex: 999,
+            touchAction: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
+          }}
         >
-          {/* Magnifying glass for precise marker placement */}
-          {touchPosition && !ballViewportPos || (touchPosition && ballViewportPos && !holeViewportPos) ? (
+          {/* Magnifying glass for precise marker placement - only show when placing new markers */}
+          {touchPosition && (!ballViewportPos || !holeViewportPos) && !isDragging ? (
             <div
               className="absolute pointer-events-none"
               style={{

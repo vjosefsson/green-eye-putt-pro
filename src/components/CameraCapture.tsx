@@ -1,36 +1,40 @@
 import { useState, useEffect } from "react";
-import { Camera, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CameraPreview } from "@capacitor-community/camera-preview";
+import { Button } from "./ui/button";
+import { X, Camera, RotateCcw, ChevronRight } from "lucide-react";
 
 interface CameraCaptureProps {
-  onCapture: (imageData: string, ballPosition: { x: number; y: number }, holePosition: { x: number; y: number }) => void;
+  onCapture: (
+    imageData: string, 
+    ballPosition: { x: number; y: number }, 
+    holePosition: { x: number; y: number },
+    imageMetadata: { width: number; height: number }
+  ) => void;
 }
 
 export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
+  const [showInstructions, setShowInstructions] = useState(true);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number } | null>(null);
   const [holePosition, setHolePosition] = useState<{ x: number; y: number } | null>(null);
+  const [capturedImageData, setCapturedImageData] = useState<string | null>(null);
+  const [imageMetadata, setImageMetadata] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
-    startCamera();
-    
-    // Add camera-active class to body for transparent background
-    document.body.classList.add('camera-active');
+    if (!showInstructions) {
+      startCamera();
+      document.body.classList.add('camera-active');
+    }
     
     return () => {
       stopCamera();
       document.body.classList.remove('camera-active');
     };
-  }, []);
+  }, [showInstructions]);
 
   const startCamera = async () => {
-    setIsStartingCamera(true);
-    
     try {
-      console.log("Starting camera preview...");
-      
       await CameraPreview.start({
         position: 'rear',
         toBack: true,
@@ -38,13 +42,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         disableAudio: true,
       });
       
-      console.log("Camera preview started");
       setIsCameraActive(true);
-      setIsStartingCamera(false);
     } catch (error) {
       console.error("Error starting camera:", error);
-      alert("Unable to access camera. Please ensure camera permissions are granted.");
-      setIsStartingCamera(false);
     }
   };
 
@@ -58,9 +58,11 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isCameraActive || capturedImageData) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     if (!ballPosition) {
       setBallPosition({ x, y });
@@ -76,128 +78,295 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
   const captureImage = async () => {
     if (!ballPosition || !holePosition) return;
-    
+
     try {
-      console.log("Capturing image...");
-      const result = await CameraPreview.capture({
-        quality: 90,
-      });
+      setIsLoading(true);
+      const result = await CameraPreview.capture({ quality: 90 });
       
-      console.log("Image captured successfully");
-      const imageData = `data:image/jpeg;base64,${result.value}`;
+      // Get actual image dimensions
+      const img = new Image();
+      const imageDataUrl = `data:image/jpeg;base64,${result.value}`;
       
+      img.onload = () => {
+        const metadata = { width: img.width, height: img.height };
+        setImageMetadata(metadata);
+        setCapturedImageData(imageDataUrl);
+        
+        // Now we have the image loaded, show preview with markers
+        setIsLoading(false);
+      };
+      
+      img.src = imageDataUrl;
       await stopCamera();
-      onCapture(imageData, ballPosition, holePosition);
     } catch (error) {
       console.error("Error capturing image:", error);
-      alert("Unable to capture image. Please try again.");
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-transparent">
-      {/* Overlay UI */}
-      <div 
-        className="absolute inset-0 cursor-crosshair bg-transparent"
-        onClick={handleScreenClick}
-        style={{ zIndex: 999 }}
-      >
-        {isStartingCamera && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="text-center">
-              <Camera className="w-12 h-12 mb-3 text-primary mx-auto animate-pulse" />
-              <p className="text-white text-lg">Starting camera...</p>
+  const confirmCapture = () => {
+    if (!capturedImageData || !imageMetadata || !ballPosition || !holePosition) return;
+
+    // Get the preview container dimensions
+    const previewContainer = document.getElementById('image-preview');
+    if (!previewContainer) return;
+
+    const rect = previewContainer.getBoundingClientRect();
+    
+    // Convert screen pixel coordinates to image pixel coordinates
+    const scaleX = imageMetadata.width / rect.width;
+    const scaleY = imageMetadata.height / rect.height;
+    
+    const ballImageCoords = {
+      x: ballPosition.x * scaleX,
+      y: ballPosition.y * scaleY
+    };
+    
+    const holeImageCoords = {
+      x: holePosition.x * scaleX,
+      y: holePosition.y * scaleY
+    };
+
+    onCapture(capturedImageData, ballImageCoords, holeImageCoords, imageMetadata);
+  };
+
+  if (showInstructions) {
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-primary/20 via-background to-secondary/20 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+              <Camera className="w-8 h-8 text-primary" />
             </div>
+            <h2 className="text-2xl font-bold text-foreground">Photo Guide</h2>
+            <p className="text-muted-foreground">För bästa resultat, följ dessa tips:</p>
           </div>
-        )}
-        
-        {/* Guide overlay */}
-        {isCameraActive && !ballPosition && !holePosition && (
-          <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
-            <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
-          </div>
-        )}
 
-        {/* Ball marker */}
-        {ballPosition && (
-          <div
-            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 animate-scale-in"
-            style={{ left: `${ballPosition.x}%`, top: `${ballPosition.y}%` }}
-          >
-            <div className="absolute inset-0 rounded-full border-2 border-green-400 animate-pulse" />
-          </div>
-        )}
-        
-        {/* Hole marker */}
-        {holePosition && (
-          <div
-            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 animate-scale-in"
-            style={{ left: `${holePosition.x}%`, top: `${holePosition.y}%` }}
-          >
-            <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-pulse" />
-          </div>
-        )}
+          <div className="space-y-4">
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                <span className="text-primary font-bold">1</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Stå bakom bollen</h3>
+                <p className="text-sm text-muted-foreground">Positionera dig bakom bollen mot hålet för bästa perspektiv</p>
+              </div>
+            </div>
 
-        {/* Instructions */}
-        {isCameraActive && (
-          <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-            <div className="text-center">
-              <p className="text-white text-lg font-semibold animate-fade-in">
-                {!ballPosition ? "Tap to mark the ball position" : !holePosition ? "Tap to mark the hole" : "Ready to capture!"}
-              </p>
-              <div className="flex items-center justify-center gap-4 mt-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-green-500/30" />
-                  <span className="text-white text-sm">Ball {ballPosition && "✓"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-red-500 bg-red-500/30" />
-                  <span className="text-white text-sm">Hole {holePosition && "✓"}</span>
-                </div>
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                <span className="text-primary font-bold">2</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Håll kameran i ögonhöjd</h3>
+                <p className="text-sm text-muted-foreground">Undvik att luta telefonen för mycket - håll den så rakt som möjligt</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                <span className="text-primary font-bold">3</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Inkludera både boll och hål</h3>
+                <p className="text-sm text-muted-foreground">Se till att både bollen och hålet syns tydligt i bilden</p>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Bottom controls */}
-        {isCameraActive && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/90 to-transparent pointer-events-auto">
-            {ballPosition && holePosition && (
-              <Button 
-                variant="camera" 
-                size="lg" 
-                onClick={captureImage}
-                className="w-full animate-fade-in"
-              >
-                <Camera className="mr-2" />
-                Capture & Analyze
-              </Button>
-            )}
-            
-            <div className="flex gap-3">
-              {(ballPosition || holePosition) && (
-                <Button 
-                  variant="outline" 
-                  size="lg" 
-                  onClick={handleResetMarkers}
-                  className="flex-1"
+          <Button 
+            onClick={() => setShowInstructions(false)}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
+            size="lg"
+          >
+            Fortsätt till kamera
+            <ChevronRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-transparent">
+      {capturedImageData && imageMetadata ? (
+        <div className="absolute inset-0 bg-black flex flex-col">
+          <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+            <div id="image-preview" className="relative">
+              <img 
+                src={capturedImageData} 
+                alt="Captured" 
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+              
+              {ballPosition && (
+                <div
+                  className="absolute w-8 h-8"
+                  style={{
+                    left: `${ballPosition.x}px`,
+                    top: `${ballPosition.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
                 >
-                  Reset Markers
-                </Button>
+                  <div className="relative w-full h-full">
+                    <div className="absolute inset-0 rounded-full bg-green-500/30" />
+                    <div className="absolute inset-2 rounded-full bg-green-500 border-2 border-white shadow-lg" />
+                  </div>
+                </div>
               )}
-              <Button 
-                variant="outline" 
-                size="lg" 
-                onClick={stopCamera}
-                className="flex-1"
+
+              {holePosition && (
+                <div
+                  className="absolute w-8 h-8"
+                  style={{
+                    left: `${holePosition.x}px`,
+                    top: `${holePosition.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <div className="relative w-full h-full">
+                    <div className="absolute inset-0 rounded-full bg-red-500/30" />
+                    <div className="absolute inset-2 rounded-full bg-red-500 border-2 border-white shadow-lg" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 bg-card/95 backdrop-blur-xl border-t border-border space-y-3">
+            <p className="text-center text-sm text-muted-foreground">
+              Kontrollera att markeringarna sitter rätt
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={confirmCapture}
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                size="lg"
               >
-                <RotateCcw className="mr-2" />
-                Cancel
+                Analysera
+              </Button>
+              <Button
+                onClick={() => {
+                  setCapturedImageData(null);
+                  setImageMetadata(null);
+                  setBallPosition(null);
+                  setHolePosition(null);
+                  startCamera();
+                }}
+                variant="outline"
+                size="lg"
+              >
+                Ta om
               </Button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div
+          className="absolute inset-0 cursor-crosshair bg-transparent"
+          onClick={handleScreenClick}
+          style={{ zIndex: 999 }}
+        >
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <div className="text-center space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+                <p className="text-white font-medium">Capturing image...</p>
+              </div>
+            </div>
+          )}
+
+          {!ballPosition && !holePosition && isCameraActive && (
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center space-y-4 pointer-events-none">
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <p className="text-white text-lg font-medium">Tryck för att markera bollen</p>
+                <p className="text-white/70 text-sm mt-2">Första tryck = boll, Andra = hål</p>
+              </div>
+            </div>
+          )}
+
+          {ballPosition && !holePosition && isCameraActive && (
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+              <div className="bg-black/70 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <p className="text-white text-lg font-medium">Tryck nu för att markera hålet</p>
+              </div>
+            </div>
+          )}
+
+          {ballPosition && (
+            <div
+              className="absolute w-8 h-8 pointer-events-none"
+              style={{
+                left: `${ballPosition.x}px`,
+                top: `${ballPosition.y}px`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 1000,
+              }}
+            >
+              <div className="relative w-full h-full">
+                <div className="absolute inset-0 rounded-full bg-green-500/30 animate-pulse" />
+                <div className="absolute inset-2 rounded-full bg-green-500 border-2 border-white shadow-lg" />
+              </div>
+            </div>
+          )}
+
+          {holePosition && (
+            <div
+              className="absolute w-8 h-8 pointer-events-none"
+              style={{
+                left: `${holePosition.x}px`,
+                top: `${holePosition.y}px`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 1000,
+              }}
+            >
+              <div className="relative w-full h-full">
+                <div className="absolute inset-0 rounded-full bg-red-500/30 animate-pulse" />
+                <div className="absolute inset-2 rounded-full bg-red-500 border-2 border-white shadow-lg" />
+              </div>
+            </div>
+          )}
+
+          <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-auto" style={{ zIndex: 1001 }}>
+            {ballPosition && holePosition && (
+              <>
+                <Button
+                  onClick={captureImage}
+                  size="lg"
+                  className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+                  disabled={isLoading}
+                >
+                  <Camera className="w-5 h-5" />
+                  Ta bild
+                </Button>
+                
+                <Button
+                  onClick={handleResetMarkers}
+                  size="lg"
+                  variant="secondary"
+                  className="flex items-center gap-2 shadow-lg"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  Rensa
+                </Button>
+              </>
+            )}
+
+            <Button
+              onClick={() => {
+                stopCamera();
+                window.location.reload();
+              }}
+              size="lg"
+              variant="destructive"
+              className="flex items-center gap-2 shadow-lg"
+            >
+              <X className="w-5 h-5" />
+              Avbryt
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

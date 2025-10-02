@@ -10,6 +10,10 @@ interface AnalysisResultsProps {
     ball: { x: number; y: number };
     hole: { x: number; y: number };
   };
+  imageMetadata: {
+    width: number;
+    height: number;
+  };
   onReset: () => void;
 }
 
@@ -22,12 +26,12 @@ interface AnalysisData {
   recommendations: string[];
 }
 
-export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResultsProps) => {
+export const AnalysisResults = ({ imageData, markers, imageMetadata, onReset }: AnalysisResultsProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [displayDimensions, setDisplayDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     analyzeGreen();
@@ -35,36 +39,38 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
 
   const handleImageLoad = () => {
     if (imageRef.current) {
-      setImageDimensions({
-        width: imageRef.current.offsetWidth,
-        height: imageRef.current.offsetHeight,
+      setDisplayDimensions({
+        width: imageRef.current.clientWidth,
+        height: imageRef.current.clientHeight,
       });
     }
   };
 
-  // Create curved path for putting line with break
   const createPuttingPath = () => {
-    if (!imageDimensions.width || !imageDimensions.height) return "";
+    // Calculate scale factor from actual image to displayed image
+    const scaleX = displayDimensions.width / imageMetadata.width;
+    const scaleY = displayDimensions.height / imageMetadata.height;
     
-    const startX = (markers.ball.x * imageDimensions.width) / 100;
-    const startY = (markers.ball.y * imageDimensions.height) / 100;
-    const endX = (markers.hole.x * imageDimensions.width) / 100;
-    const endY = (markers.hole.y * imageDimensions.height) / 100;
+    // Convert image pixel coordinates to display coordinates
+    const ballX = markers.ball.x * scaleX;
+    const ballY = markers.ball.y * scaleY;
+    const holeX = markers.hole.x * scaleX;
+    const holeY = markers.hole.y * scaleY;
     
     // Calculate control point for bezier curve (simulate break)
-    const midX = (startX + endX) / 2;
-    const midY = (startY + endY) / 2;
+    const midX = (ballX + holeX) / 2;
+    const midY = (ballY + holeY) / 2;
     
     // Offset perpendicular to the line to create break
-    const dx = endX - startX;
-    const dy = endY - startY;
+    const dx = holeX - ballX;
+    const dy = holeY - ballY;
     const length = Math.sqrt(dx * dx + dy * dy);
     const breakAmount = length * 0.15; // 15% break
     
     const controlX = midX + (dy / length) * breakAmount;
     const controlY = midY - (dx / length) * breakAmount;
     
-    return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+    return `M ${ballX} ${ballY} Q ${controlX} ${controlY} ${holeX} ${holeY}`;
   };
 
   const analyzeGreen = async () => {
@@ -111,11 +117,11 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
             className="w-full object-contain max-h-[40vh]"
             onLoad={handleImageLoad}
           />
-          {imageDimensions.width > 0 && (
-            <svg 
+          {displayDimensions.width > 0 && (
+            <svg
               className="absolute inset-0 pointer-events-none"
-              width={imageDimensions.width}
-              height={imageDimensions.height}
+              width={displayDimensions.width}
+              height={displayDimensions.height}
               style={{ 
                 left: '50%', 
                 top: '50%', 
@@ -172,32 +178,32 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
               
               {/* Ball marker */}
               <circle
-                cx={(markers.ball.x * imageDimensions.width) / 100}
-                cy={(markers.ball.y * imageDimensions.height) / 100}
+                cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
+                cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
                 r="12"
                 fill="rgba(34, 197, 94, 0.3)"
                 stroke="rgb(34, 197, 94)"
                 strokeWidth="3"
               />
               <circle
-                cx={(markers.ball.x * imageDimensions.width) / 100}
-                cy={(markers.ball.y * imageDimensions.height) / 100}
+                cx={(markers.ball.x * displayDimensions.width) / imageMetadata.width}
+                cy={(markers.ball.y * displayDimensions.height) / imageMetadata.height}
                 r="4"
                 fill="rgb(34, 197, 94)"
               />
               
               {/* Hole marker */}
               <circle
-                cx={(markers.hole.x * imageDimensions.width) / 100}
-                cy={(markers.hole.y * imageDimensions.height) / 100}
+                cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
+                cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
                 r="12"
                 fill="rgba(239, 68, 68, 0.3)"
                 stroke="rgb(239, 68, 68)"
                 strokeWidth="3"
               />
               <circle
-                cx={(markers.hole.x * imageDimensions.width) / 100}
-                cy={(markers.hole.y * imageDimensions.height) / 100}
+                cx={(markers.hole.x * displayDimensions.width) / imageMetadata.width}
+                cy={(markers.hole.y * displayDimensions.height) / imageMetadata.height}
                 r="4"
                 fill="rgb(239, 68, 68)"
               />
@@ -217,7 +223,7 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
           ) : error ? (
             <div className="text-center py-8">
               <p className="text-destructive mb-4">{error}</p>
-              <Button variant="camera" onClick={analyzeGreen}>
+              <Button variant="default" onClick={analyzeGreen}>
                 Try Again
               </Button>
             </div>

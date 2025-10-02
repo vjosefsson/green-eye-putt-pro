@@ -1,117 +1,62 @@
-import { useRef, useState, useEffect } from "react";
-import { Camera, RotateCcw, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Camera, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Capacitor } from "@capacitor/core";
-import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { CameraPreview } from "@capacitor-community/camera-preview";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string, ballPosition: { x: number; y: number }, holePosition: { x: number; y: number }) => void;
 }
 
 export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isNative, setIsNative] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number } | null>(null);
   const [holePosition, setHolePosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    setIsNative(Capacitor.isNativePlatform());
-    // Auto-start camera
     startCamera();
     
     return () => {
-      // Cleanup on unmount
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+      stopCamera();
     };
   }, []);
 
   const startCamera = async () => {
-    // For consistent UX with markers, we always use web camera API
-    // even on native platforms
-
-    // Show camera UI first so video element is in DOM
     setIsStartingCamera(true);
     
-    // Wait for next render cycle to ensure video element exists
-    setTimeout(async () => {
-      try {
-        console.log("Requesting camera access...");
-        
-        // Try with environment camera first, fallback to any camera
-        let mediaStream: MediaStream;
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            },
-            audio: false,
-          });
-          console.log("Camera access granted with environment camera");
-        } catch (error) {
-          console.log("Environment camera not available, trying any camera...");
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-          console.log("Camera access granted with default camera");
-        }
-        
-        if (videoRef.current) {
-          const video = videoRef.current;
-          
-          video.srcObject = mediaStream;
-          setStream(mediaStream);
-          setIsCameraActive(true);
-          setIsStartingCamera(false);
-          console.log("Video source set, camera active");
-          
-          // Add event listeners for better mobile support
-          video.onloadedmetadata = () => {
-            console.log("Video metadata loaded, readyState:", video.readyState);
-            video.play()
-              .then(() => {
-                console.log("Video playing successfully");
-              })
-              .catch((err) => {
-                console.error("Error playing video (autoplay blocked?):", err);
-                alert("Tap the video to start camera feed");
-              });
-          };
-          
-          video.onerror = (err) => {
-            console.error("Video element error:", err);
-            alert("Unable to display camera feed. Please try again.");
-          };
-        }
-      } catch (error) {
-        console.error("Error accessing camera:", error);
-        alert("Unable to access camera. Please ensure camera permissions are granted and try again.");
-        setIsStartingCamera(false);
-        setIsCameraActive(false);
-      }
-    }, 100);
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-      setIsCameraActive(false);
+    try {
+      console.log("Starting camera preview...");
+      
+      await CameraPreview.start({
+        position: 'rear',
+        parent: 'cameraPreview',
+        className: 'cameraPreview',
+        toBack: true,
+        enableHighResolution: true,
+        disableAudio: true,
+      });
+      
+      console.log("Camera preview started");
+      setIsCameraActive(true);
+      setIsStartingCamera(false);
+    } catch (error) {
+      console.error("Error starting camera:", error);
+      alert("Unable to access camera. Please ensure camera permissions are granted.");
+      setIsStartingCamera(false);
     }
   };
 
-  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
-    if (!videoRef.current) return;
+  const stopCamera = async () => {
+    try {
+      await CameraPreview.stop();
+      setIsCameraActive(false);
+    } catch (error) {
+      console.error("Error stopping camera:", error);
+    }
+  };
 
-    const rect = videoRef.current.getBoundingClientRect();
+  const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
@@ -127,36 +72,41 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     setHolePosition(null);
   };
 
-  const captureImage = () => {
-    if (videoRef.current && canvasRef.current && ballPosition && holePosition) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+  const captureImage = async () => {
+    if (!ballPosition || !holePosition) return;
+    
+    try {
+      console.log("Capturing image...");
+      const result = await CameraPreview.capture({
+        quality: 90,
+      });
       
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      console.log("Image captured successfully");
+      const imageData = `data:image/jpeg;base64,${result.value}`;
       
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
-        stopCamera();
-        onCapture(imageData, ballPosition, holePosition);
-      }
+      await stopCamera();
+      onCapture(imageData, ballPosition, holePosition);
+    } catch (error) {
+      console.error("Error capturing image:", error);
+      alert("Unable to capture image. Please try again.");
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black">
-      <div className="relative w-full h-full">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          onClick={handleVideoClick}
-          className="w-full h-full object-cover cursor-crosshair"
-        />
-        
+      {/* Camera preview container */}
+      <div 
+        id="cameraPreview" 
+        className="absolute inset-0"
+        style={{ zIndex: 0 }}
+      />
+      
+      {/* Overlay UI */}
+      <div 
+        className="absolute inset-0 cursor-crosshair"
+        onClick={handleScreenClick}
+        style={{ zIndex: 10 }}
+      >
         {isStartingCamera && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="text-center">
@@ -195,7 +145,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
         {/* Instructions */}
         {isCameraActive && (
-          <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent">
+          <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
             <div className="text-center">
               <p className="text-white text-lg font-semibold animate-fade-in">
                 {!ballPosition ? "Tap to mark the ball position" : !holePosition ? "Tap to mark the hole" : "Ready to capture!"}
@@ -216,7 +166,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
         {/* Bottom controls */}
         {isCameraActive && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/90 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/90 to-transparent pointer-events-auto">
             {ballPosition && holePosition && (
               <Button 
                 variant="camera" 
@@ -253,8 +203,6 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
           </div>
         )}
       </div>
-      
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 };

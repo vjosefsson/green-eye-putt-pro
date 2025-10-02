@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RotateCcw, Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,10 +26,46 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     analyzeGreen();
   }, []);
+
+  const handleImageLoad = () => {
+    if (imageRef.current) {
+      setImageDimensions({
+        width: imageRef.current.offsetWidth,
+        height: imageRef.current.offsetHeight,
+      });
+    }
+  };
+
+  // Create curved path for putting line with break
+  const createPuttingPath = () => {
+    if (!imageDimensions.width || !imageDimensions.height) return "";
+    
+    const startX = (markers.ball.x * imageDimensions.width) / 100;
+    const startY = (markers.ball.y * imageDimensions.height) / 100;
+    const endX = (markers.hole.x * imageDimensions.width) / 100;
+    const endY = (markers.hole.y * imageDimensions.height) / 100;
+    
+    // Calculate control point for bezier curve (simulate break)
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    
+    // Offset perpendicular to the line to create break
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const breakAmount = length * 0.15; // 15% break
+    
+    const controlX = midX + (dy / length) * breakAmount;
+    const controlY = midY - (dx / length) * breakAmount;
+    
+    return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+  };
 
   const analyzeGreen = async () => {
     setIsAnalyzing(true);
@@ -67,41 +103,106 @@ export const AnalysisResults = ({ imageData, markers, onReset }: AnalysisResults
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-background to-muted flex flex-col">
       <div className="flex-1 overflow-y-auto">
-        <div className="relative w-full">
+        <div className="relative w-full bg-black">
           <img 
+            ref={imageRef}
             src={imageData} 
             alt="Captured green" 
             className="w-full object-contain max-h-[40vh]"
+            onLoad={handleImageLoad}
           />
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Ball marker */}
-            <div
-              className="absolute w-6 h-6 rounded-full border-3 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${markers.ball.x}%`, top: `${markers.ball.y}%` }}
-            />
-            
-            {/* Hole marker */}
-            <div
-              className="absolute w-6 h-6 rounded-full border-3 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${markers.hole.x}%`, top: `${markers.hole.y}%` }}
-            />
-            
-            {/* Putting line */}
-            {!isAnalyzing && analysis && (
-              <svg className="w-full h-full absolute inset-0" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <line 
-                  x1={markers.ball.x} 
-                  y1={markers.ball.y} 
-                  x2={markers.hole.x} 
-                  y2={markers.hole.y} 
-                  stroke="hsl(var(--accent))" 
-                  strokeWidth="0.5" 
-                  strokeDasharray="2,2"
-                  className="drop-shadow-lg"
-                />
-              </svg>
-            )}
-          </div>
+          {imageDimensions.width > 0 && (
+            <svg 
+              className="absolute inset-0 pointer-events-none"
+              width={imageDimensions.width}
+              height={imageDimensions.height}
+              style={{ 
+                left: '50%', 
+                top: '50%', 
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <defs>
+                <linearGradient id="puttLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
+                  <stop offset="50%" style={{ stopColor: 'rgba(255, 215, 0, 0.95)', stopOpacity: 0.95 }} />
+                  <stop offset="100%" style={{ stopColor: 'rgba(255, 255, 255, 0.9)', stopOpacity: 0.9 }} />
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              
+              {/* Putting line with glow effect - PuttView style */}
+              {!isAnalyzing && analysis && (
+                <>
+                  {/* Shadow/glow layer */}
+                  <path
+                    d={createPuttingPath()}
+                    stroke="rgba(255, 215, 0, 0.6)"
+                    strokeWidth="12"
+                    fill="none"
+                    filter="url(#glow)"
+                    className="animate-pulse"
+                  />
+                  {/* Main line */}
+                  <path
+                    d={createPuttingPath()}
+                    stroke="url(#puttLineGradient)"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                  {/* Animated dash overlay */}
+                  <path
+                    d={createPuttingPath()}
+                    stroke="rgba(255, 255, 255, 0.8)"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeDasharray="8 8"
+                    strokeLinecap="round"
+                    className="animate-[dash_1s_linear_infinite]"
+                  />
+                </>
+              )}
+              
+              {/* Ball marker */}
+              <circle
+                cx={(markers.ball.x * imageDimensions.width) / 100}
+                cy={(markers.ball.y * imageDimensions.height) / 100}
+                r="12"
+                fill="rgba(34, 197, 94, 0.3)"
+                stroke="rgb(34, 197, 94)"
+                strokeWidth="3"
+              />
+              <circle
+                cx={(markers.ball.x * imageDimensions.width) / 100}
+                cy={(markers.ball.y * imageDimensions.height) / 100}
+                r="4"
+                fill="rgb(34, 197, 94)"
+              />
+              
+              {/* Hole marker */}
+              <circle
+                cx={(markers.hole.x * imageDimensions.width) / 100}
+                cy={(markers.hole.y * imageDimensions.height) / 100}
+                r="12"
+                fill="rgba(239, 68, 68, 0.3)"
+                stroke="rgb(239, 68, 68)"
+                strokeWidth="3"
+              />
+              <circle
+                cx={(markers.hole.x * imageDimensions.width) / 100}
+                cy={(markers.hole.y * imageDimensions.height) / 100}
+                r="4"
+                fill="rgb(239, 68, 68)"
+              />
+            </svg>
+          )}
         </div>
 
         <div className="p-6 space-y-4">

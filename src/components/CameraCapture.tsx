@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CameraPreview } from "@capacitor-community/camera-preview";
 import { Motion } from "@capacitor/motion";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { Button } from "./ui/button";
 import { X, Camera, RotateCcw, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, ChevronRight as ChevronRightArrow } from "lucide-react";
 
@@ -27,9 +28,14 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const [imageMetadata, setImageMetadata] = useState<{ width: number; height: number } | null>(null);
   const [viewportDimensions, setViewportDimensions] = useState<{ width: number; height: number } | null>(null);
   const [deviceOrientation, setDeviceOrientation] = useState<{ pitch: number; roll: number }>({ pitch: 90, roll: 0 });
+  const [isDragging, setIsDragging] = useState<'ball' | 'hole' | null>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastHapticStatus = useRef<string>('');
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
 
   useEffect(() => {
     if (!showInstructions) {
+      setIsCameraLoading(true);
       startCamera();
       startMotionTracking();
       document.body.classList.add('camera-active');
@@ -41,6 +47,21 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       document.body.classList.remove('camera-active');
     };
   }, [showInstructions]);
+
+  useEffect(() => {
+    const status = getLevelStatus().status;
+    if (isCameraActive && status !== lastHapticStatus.current) {
+      lastHapticStatus.current = status;
+      
+      if (status === 'good') {
+        Haptics.impact({ style: ImpactStyle.Light });
+      } else if (status === 'ok') {
+        Haptics.impact({ style: ImpactStyle.Medium });
+      } else {
+        Haptics.impact({ style: ImpactStyle.Heavy });
+      }
+    }
+  }, [deviceOrientation, isCameraActive]);
 
   const startMotionTracking = async () => {
     try {
@@ -98,8 +119,10 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       });
       
       setIsCameraActive(true);
+      setIsCameraLoading(false);
     } catch (error) {
       console.error("Error starting camera:", error);
+      setIsCameraLoading(false);
     }
   };
 
@@ -113,7 +136,7 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isCameraActive || capturedImageData) return;
+    if (!isCameraActive || capturedImageData || isDragging) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -128,7 +151,40 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
     if (!ballViewportPos) {
       setBallViewportPos({ x, y });
+      Haptics.impact({ style: ImpactStyle.Medium });
     } else if (!holeViewportPos) {
+      setHoleViewportPos({ x, y });
+      Haptics.impact({ style: ImpactStyle.Medium });
+    }
+  };
+
+  const handleMarkerTouchStart = (marker: 'ball' | 'hole', e: React.TouchEvent) => {
+    e.stopPropagation();
+    longPressTimer.current = setTimeout(() => {
+      setIsDragging(marker);
+      Haptics.impact({ style: ImpactStyle.Heavy });
+    }, 500);
+  };
+
+  const handleMarkerTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    setIsDragging(null);
+  };
+
+  const handleMarkerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    if (isDragging === 'ball') {
+      setBallViewportPos({ x, y });
+    } else if (isDragging === 'hole') {
       setHoleViewportPos({ x, y });
     }
   };
@@ -366,8 +422,18 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         <div
           className="absolute inset-0 cursor-crosshair bg-transparent"
           onClick={handleScreenClick}
+          onTouchMove={handleMarkerTouchMove}
           style={{ zIndex: 999 }}
         >
+          {/* Camera loading overlay */}
+          {isCameraLoading && (
+            <div className="absolute inset-0 bg-black flex items-center justify-center">
+              <div className="text-center space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+                <p className="text-white font-medium">Startar kamera...</p>
+              </div>
+            </div>
+          )}
           {/* Level indicator at top - moved down to avoid Dynamic Island */}
           {isCameraActive && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50">
@@ -413,13 +479,16 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
           {ballViewportPos && (
             <div
-              className="absolute w-8 h-8 pointer-events-none"
+              className="absolute w-8 h-8"
               style={{
                 left: `${ballViewportPos.x}px`,
                 top: `${ballViewportPos.y}px`,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 1000,
+                pointerEvents: 'auto',
               }}
+              onTouchStart={(e) => handleMarkerTouchStart('ball', e)}
+              onTouchEnd={handleMarkerTouchEnd}
             >
               <div className="relative w-full h-full">
                 <div className="absolute inset-0 rounded-full bg-green-500/30 animate-pulse" />
@@ -430,13 +499,16 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
           {holeViewportPos && (
             <div
-              className="absolute w-8 h-8 pointer-events-none"
+              className="absolute w-8 h-8"
               style={{
                 left: `${holeViewportPos.x}px`,
                 top: `${holeViewportPos.y}px`,
                 transform: 'translate(-50%, -50%)',
                 zIndex: 1000,
+                pointerEvents: 'auto',
               }}
+              onTouchStart={(e) => handleMarkerTouchStart('hole', e)}
+              onTouchEnd={handleMarkerTouchEnd}
             >
               <div className="relative w-full h-full">
                 <div className="absolute inset-0 rounded-full bg-red-500/30 animate-pulse" />
@@ -447,33 +519,39 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
           <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-auto" style={{ zIndex: 1001 }}>
             {ballViewportPos && holeViewportPos && (
-              <>
-                <Button
-                  onClick={captureImage}
-                  size="lg"
-                  className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
-                  disabled={isLoading}
-                >
-                  <Camera className="w-5 h-5" />
-                  Ta bild
-                </Button>
-                
-                <Button
-                  onClick={handleResetMarkers}
-                  size="lg"
-                  variant="secondary"
-                  className="flex items-center gap-2 shadow-lg"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                  Rensa
-                </Button>
-              </>
+              <Button
+                onClick={captureImage}
+                size="lg"
+                className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+                disabled={isLoading}
+              >
+                <Camera className="w-5 h-5" />
+                Ta bild
+              </Button>
+            )}
+            
+            {(ballViewportPos || holeViewportPos) && (
+              <Button
+                onClick={handleResetMarkers}
+                size="lg"
+                variant="secondary"
+                className="flex items-center gap-2 shadow-lg"
+              >
+                <RotateCcw className="w-5 h-5" />
+                Rensa
+              </Button>
             )}
 
             <Button
               onClick={() => {
-                stopCamera();
-                window.location.reload();
+                setShowInstructions(true);
+                setBallViewportPos(null);
+                setHoleViewportPos(null);
+                setBallPreviewPos(null);
+                setHolePreviewPos(null);
+                setCapturedImageData(null);
+                setImageMetadata(null);
+                setViewportDimensions(null);
               }}
               size="lg"
               variant="destructive"

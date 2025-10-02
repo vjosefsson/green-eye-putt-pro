@@ -38,9 +38,9 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
     e.preventDefault();
     
     const touch = e.touches[0];
-    if (!containerRef.current) return;
+    if (!imageRef.current) return;
     
-    const rect = containerRef.current.getBoundingClientRect();
+    const rect = imageRef.current.getBoundingClientRect();
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
     
@@ -48,22 +48,25 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (isDragging) {
-      handleMarkerDrag(e);
-      return;
-    }
-    
-    if (!touchPosition) return;
-    
     e.preventDefault();
     
     const touch = e.touches[0];
-    if (!containerRef.current) return;
+    if (!imageRef.current) return;
     
-    const rect = containerRef.current.getBoundingClientRect();
+    const rect = imageRef.current.getBoundingClientRect();
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
     
+    if (isDragging) {
+      // Update marker position during drag
+      if (draggedMarker === 'ball') {
+        setBallPosition({ x, y });
+      } else if (draggedMarker === 'hole') {
+        setHolePosition({ x, y });
+      }
+    }
+    
+    // Always update touch position for magnifier
     setTouchPosition({ x, y });
   };
 
@@ -80,18 +83,11 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
       return;
     }
 
-    if (touchPosition && imageRef.current && containerRef.current) {
-      const imageRect = imageRef.current.getBoundingClientRect();
-      const containerRect = containerRef.current.getBoundingClientRect();
-      
-      // Convert container coordinates to image coordinates
-      const x = touchPosition.x + containerRect.left - imageRect.left;
-      const y = touchPosition.y + containerRect.top - imageRect.top;
-
+    if (touchPosition && imageRef.current) {
       if (!ballPosition) {
-        setBallPosition({ x, y });
+        setBallPosition({ x: touchPosition.x, y: touchPosition.y });
       } else if (!holePosition) {
-        setHolePosition({ x, y });
+        setHolePosition({ x: touchPosition.x, y: touchPosition.y });
       }
     }
     
@@ -111,22 +107,6 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
     }, 300);
   };
 
-  const handleMarkerDrag = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!isDragging || !draggedMarker || !imageRef.current) return;
-    
-    e.preventDefault();
-
-    const touch = e.touches[0];
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    if (draggedMarker === 'ball') {
-      setBallPosition({ x, y });
-    } else {
-      setHolePosition({ x, y });
-    }
-  };
 
   const handleConfirm = () => {
     if (ballPosition && holePosition && imageRef.current) {
@@ -159,10 +139,12 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           touchAction: 'none',
           WebkitUserSelect: 'none',
-          userSelect: 'none'
+          userSelect: 'none',
+          WebkitTouchCallout: 'none'
         }}
       >
         <img
@@ -174,12 +156,12 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
         />
 
         {/* Magnifying glass */}
-        {touchPosition && (!ballPosition || !holePosition) && !isDragging && (
+        {touchPosition && imageRef.current && ((!ballPosition || !holePosition) || isDragging) && (
           <div
             className="absolute pointer-events-none"
             style={{
-              left: `${touchPosition.x}px`,
-              top: `${touchPosition.y - 100}px`,
+              left: `${touchPosition.x + imageRef.current.getBoundingClientRect().left}px`,
+              top: `${touchPosition.y + imageRef.current.getBoundingClientRect().top - 100}px`,
               transform: 'translate(-50%, -50%)'
             }}
           >
@@ -189,7 +171,7 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
                 <div className="absolute w-full h-0.5 bg-white/50" />
               </div>
               <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap bg-black/80 px-3 py-1 rounded text-white text-sm">
-                {!ballPosition ? "Boll" : "Hål"}
+                {isDragging ? (draggedMarker === 'ball' ? "Flytta boll" : "Flytta hål") : (!ballPosition ? "Boll" : "Hål")}
               </div>
             </div>
           </div>
@@ -197,10 +179,14 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
         
         {ballPosition && imageRef.current && (
           <div
-            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2 touch-none"
+            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 transform -translate-x-1/2 -translate-y-1/2"
             style={{ 
-              left: `${ballPosition.x}px`,
-              top: `${ballPosition.y}px`
+              left: `${ballPosition.x + imageRef.current.getBoundingClientRect().left}px`,
+              top: `${ballPosition.y + imageRef.current.getBoundingClientRect().top}px`,
+              touchAction: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+              WebkitTouchCallout: 'none'
             }}
             onTouchStart={(e) => handleMarkerTouchStart(e, 'ball')}
             onContextMenu={(e) => e.preventDefault()}
@@ -209,10 +195,14 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
         
         {holePosition && imageRef.current && (
           <div
-            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2 touch-none"
+            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 transform -translate-x-1/2 -translate-y-1/2"
             style={{ 
-              left: `${holePosition.x}px`,
-              top: `${holePosition.y}px`
+              left: `${holePosition.x + imageRef.current.getBoundingClientRect().left}px`,
+              top: `${holePosition.y + imageRef.current.getBoundingClientRect().top}px`,
+              touchAction: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+              WebkitTouchCallout: 'none'
             }}
             onTouchStart={(e) => handleMarkerTouchStart(e, 'hole')}
             onContextMenu={(e) => e.preventDefault()}

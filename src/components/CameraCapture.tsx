@@ -232,9 +232,36 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       {/* Main camera view with UI overlay */}
       {!showInstructions && (
         <>
-          {/* iPhone-style Level Indicator - Centered */}
+          {/* iPhone-style Level Indicator with Direction Arrows - Centered */}
           {isCameraActive && (
             <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+              {/* Directional arrows */}
+              {!getLevelStatus().isLevel && (
+                <>
+                  {/* Horizontal arrows (roll) */}
+                  {Math.abs(deviceOrientation.roll) > 5 && (
+                    <div className={`absolute top-1/2 -translate-y-1/2 ${deviceOrientation.roll > 0 ? '-left-16' : '-right-16'}`}>
+                      <div className="text-white/80 animate-pulse">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={deviceOrientation.roll > 0 ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Vertical arrows (pitch) */}
+                  {Math.abs(deviceOrientation.pitch - 90) > 5 && (
+                    <div className={`absolute left-1/2 -translate-x-1/2 ${deviceOrientation.pitch > 90 ? '-top-16' : '-bottom-16'}`}>
+                      <div className="text-white/80 animate-pulse">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={deviceOrientation.pitch > 90 ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              
               <div className="relative w-[280px] h-[50px] bg-black/60 backdrop-blur-lg rounded-2xl border border-white/30 flex items-center justify-center overflow-hidden">
                 {/* Gradient background track */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />

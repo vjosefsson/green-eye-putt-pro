@@ -1,12 +1,11 @@
 import { useRef, useState, useEffect } from "react";
-import { Camera, RotateCcw } from "lucide-react";
+import { Camera, RotateCcw, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 interface CameraCaptureProps {
-  onCapture: (imageData: string) => void;
+  onCapture: (imageData: string, ballPosition: { x: number; y: number }, holePosition: { x: number; y: number }) => void;
 }
 
 export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
@@ -16,56 +15,25 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isNative, setIsNative] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [ballPosition, setBallPosition] = useState<{ x: number; y: number } | null>(null);
+  const [holePosition, setHolePosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
+    // Auto-start camera
+    startCamera();
+    
+    return () => {
+      // Cleanup on unmount
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
-  const captureWithNativeCamera = async () => {
-    try {
-      console.log("Checking camera permissions...");
-      
-      // Check current permission status
-      const permissions = await CapCamera.checkPermissions();
-      console.log("Current permissions:", permissions);
-      
-      // Request permissions if not granted
-      if (permissions.camera !== 'granted') {
-        console.log("Requesting camera permissions...");
-        const requested = await CapCamera.requestPermissions();
-        console.log("Permission request result:", requested);
-        
-        if (requested.camera !== 'granted') {
-          alert("Camera permission is required to analyze golf greens. Please enable it in Settings.");
-          return;
-        }
-      }
-      
-      console.log("Opening native camera...");
-      const image = await CapCamera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.DataUrl,
-        source: CameraSource.Camera,
-        saveToGallery: false,
-      });
-
-      if (image.dataUrl) {
-        console.log("Image captured successfully");
-        onCapture(image.dataUrl);
-      }
-    } catch (error) {
-      console.error("Error capturing with native camera:", error);
-      alert("Unable to access camera. Error: " + (error as Error).message);
-    }
-  };
-
   const startCamera = async () => {
-    // If running as a native app, use native camera
-    if (isNative) {
-      await captureWithNativeCamera();
-      return;
-    }
+    // For consistent UX with markers, we always use web camera API
+    // even on native platforms
 
     // Show camera UI first so video element is in DOM
     setIsStartingCamera(true);
@@ -140,8 +108,27 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
     }
   };
 
+  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    if (!videoRef.current) return;
+
+    const rect = videoRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    if (!ballPosition) {
+      setBallPosition({ x, y });
+    } else if (!holePosition) {
+      setHolePosition({ x, y });
+    }
+  };
+
+  const handleResetMarkers = () => {
+    setBallPosition(null);
+    setHolePosition(null);
+  };
+
   const captureImage = () => {
-    if (videoRef.current && canvasRef.current) {
+    if (videoRef.current && canvasRef.current && ballPosition && holePosition) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       
@@ -153,89 +140,121 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
         ctx.drawImage(video, 0, 0);
         const imageData = canvas.toDataURL("image/jpeg", 0.9);
         stopCamera();
-        onCapture(imageData);
+        onCapture(imageData, ballPosition, holePosition);
       }
     }
   };
 
   return (
-    <>
-      {!isCameraActive && !isStartingCamera ? (
-        <div className="fixed inset-0 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-background to-muted">
-          <div className="flex flex-col items-center justify-center max-w-md">
-            <Camera className="w-16 h-16 mb-4 text-primary" />
-            <h2 className="text-2xl font-bold mb-2 text-center text-foreground">Golf Green Analyzer</h2>
-            <p className="text-muted-foreground text-center mb-6">
-              Capture an image of the putting green to get AI-powered line recommendations
-            </p>
-            <Button 
-              variant="camera" 
-              size="lg" 
-              onClick={startCamera}
-              className="w-full"
-            >
-              <Camera className="mr-2" />
-              Start Camera
-            </Button>
-            <p className="text-sm text-muted-foreground text-center mt-6">
-              Position the green in the frame and capture the image. Our AI will analyze the slope and break to suggest the optimal putting line.
-            </p>
+    <div className="fixed inset-0 bg-black">
+      <div className="relative w-full h-full">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          onClick={handleVideoClick}
+          className="w-full h-full object-cover cursor-crosshair"
+        />
+        
+        {isStartingCamera && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="text-center">
+              <Camera className="w-12 h-12 mb-3 text-primary mx-auto animate-pulse" />
+              <p className="text-white text-lg">Starting camera...</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="fixed inset-0 bg-black">
-          <div className="relative w-full h-full">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              onClick={() => {
-                // Manual play fallback for mobile
-                if (videoRef.current && videoRef.current.paused) {
-                  videoRef.current.play().catch(console.error);
-                }
-              }}
-              className="w-full h-full object-cover"
-            />
-            
-            {isStartingCamera && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                <p className="text-white">Starting camera...</p>
+        )}
+        
+        {/* Guide overlay */}
+        {isCameraActive && !ballPosition && !holePosition && (
+          <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
+            <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
+          </div>
+        )}
+
+        {/* Ball marker */}
+        {ballPosition && (
+          <div
+            className="absolute w-10 h-10 rounded-full border-4 border-green-500 bg-green-500/30 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 animate-scale-in"
+            style={{ left: `${ballPosition.x}%`, top: `${ballPosition.y}%` }}
+          >
+            <div className="absolute inset-0 rounded-full border-2 border-green-400 animate-pulse" />
+          </div>
+        )}
+        
+        {/* Hole marker */}
+        {holePosition && (
+          <div
+            className="absolute w-10 h-10 rounded-full border-4 border-red-500 bg-red-500/30 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 animate-scale-in"
+            style={{ left: `${holePosition.x}%`, top: `${holePosition.y}%` }}
+          >
+            <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-pulse" />
+          </div>
+        )}
+
+        {/* Instructions */}
+        {isCameraActive && (
+          <div className="absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="text-center">
+              <p className="text-white text-lg font-semibold animate-fade-in">
+                {!ballPosition ? "Tap to mark the ball position" : !holePosition ? "Tap to mark the hole" : "Ready to capture!"}
+              </p>
+              <div className="flex items-center justify-center gap-4 mt-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-green-500/30" />
+                  <span className="text-white text-sm">Ball {ballPosition && "✓"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-red-500 bg-red-500/30" />
+                  <span className="text-white text-sm">Hole {holePosition && "✓"}</span>
+                </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom controls */}
+        {isCameraActive && (
+          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/90 to-transparent">
+            {ballPosition && holePosition && (
+              <Button 
+                variant="camera" 
+                size="lg" 
+                onClick={captureImage}
+                className="w-full animate-fade-in"
+              >
+                <Camera className="mr-2" />
+                Capture & Analyze
+              </Button>
             )}
             
-            <div className="absolute inset-0 border-4 border-primary/20 pointer-events-none">
-              <div className="absolute inset-4 border-2 border-primary/40 border-dashed" />
-            </div>
-
-            {isCameraActive && (
-              <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3 bg-gradient-to-t from-black/80 to-transparent">
-                <Button 
-                  variant="camera" 
-                  size="lg" 
-                  onClick={captureImage}
-                  className="w-full"
-                >
-                  <Camera className="mr-2" />
-                  Capture Green
-                </Button>
+            <div className="flex gap-3">
+              {(ballPosition || holePosition) && (
                 <Button 
                   variant="outline" 
                   size="lg" 
-                  onClick={stopCamera}
-                  className="w-full"
+                  onClick={handleResetMarkers}
+                  className="flex-1"
                 >
-                  <RotateCcw className="mr-2" />
-                  Cancel
+                  Reset Markers
                 </Button>
-              </div>
-            )}
+              )}
+              <Button 
+                variant="outline" 
+                size="lg" 
+                onClick={stopCamera}
+                className="flex-1"
+              >
+                <RotateCcw className="mr-2" />
+                Cancel
+              </Button>
+            </div>
           </div>
-          
-          <canvas ref={canvasRef} className="hidden" />
-        </div>
-      )}
-    </>
+        )}
+      </div>
+      
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
   );
 };

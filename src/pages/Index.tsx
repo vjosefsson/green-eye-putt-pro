@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { CameraCapture } from "@/components/CameraCapture";
-import { MarkerSelection } from "@/components/MarkerSelection";
 import { AnalysisResults } from "@/components/AnalysisResults";
 
 interface Markers {
@@ -12,11 +11,8 @@ const Index = () => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [markers, setMarkers] = useState<Markers | null>(null);
 
-  const handleCapture = (imageData: string) => {
+  const handleCapture = (imageData: string, ballPosition: { x: number; y: number }, holePosition: { x: number; y: number }) => {
     setCapturedImage(imageData);
-  };
-
-  const handleMarkersConfirm = (ballPosition: { x: number; y: number }, holePosition: { x: number; y: number }) => {
     setMarkers({ ball: ballPosition, hole: holePosition });
   };
 
@@ -27,14 +23,8 @@ const Index = () => {
 
   return (
     <>
-      {!capturedImage ? (
+      {!capturedImage || !markers ? (
         <CameraCapture onCapture={handleCapture} />
-      ) : !markers ? (
-        <MarkerSelection 
-          imageData={capturedImage} 
-          onConfirm={handleMarkersConfirm}
-          onReset={handleReset}
-        />
       ) : (
         <AnalysisResults 
           imageData={capturedImage} 

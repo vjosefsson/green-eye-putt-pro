@@ -251,10 +251,10 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                   
                   {/* Vertical arrows (pitch) */}
                   {Math.abs(deviceOrientation.pitch - 90) > 5 && (
-                    <div className={`absolute left-1/2 -translate-x-1/2 ${deviceOrientation.pitch > 90 ? '-top-16' : '-bottom-16'}`}>
+                    <div className={`absolute left-1/2 -translate-x-1/2 ${deviceOrientation.pitch < 90 ? '-top-16' : '-bottom-16'}`}>
                       <div className="text-white/80 animate-pulse">
                         <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={deviceOrientation.pitch > 90 ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={deviceOrientation.pitch < 90 ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                         </svg>
                       </div>
                     </div>

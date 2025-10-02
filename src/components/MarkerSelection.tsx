@@ -158,11 +158,11 @@ export const MarkerSelection = ({ imageData, onConfirm, onReset }: MarkerSelecti
         {/* Magnifying glass */}
         {touchPosition && imageRef.current && ((!ballPosition || !holePosition) || isDragging) && (
           <div
-            className="absolute pointer-events-none"
+            className="absolute pointer-events-none z-50"
             style={{
               left: `${touchPosition.x + imageRef.current.getBoundingClientRect().left}px`,
-              top: `${touchPosition.y + imageRef.current.getBoundingClientRect().top - 100}px`,
-              transform: 'translate(-50%, -50%)'
+              top: `${touchPosition.y + imageRef.current.getBoundingClientRect().top}px`,
+              transform: 'translate(-50%, calc(-100% - 20px))'
             }}
           >
             <div className="relative w-24 h-24 rounded-full border-4 border-white bg-black/40 backdrop-blur-sm flex items-center justify-center">

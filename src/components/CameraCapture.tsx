@@ -29,12 +29,9 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       
       await CameraPreview.start({
         position: 'rear',
+        toBack: true,
         enableHighResolution: true,
         disableAudio: true,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        x: 0,
-        y: 0,
       });
       
       console.log("Camera preview started");
@@ -94,10 +91,10 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   };
 
   return (
-    <div className="fixed inset-0">
+    <div className="fixed inset-0 bg-transparent">
       {/* Overlay UI */}
       <div 
-        className="absolute inset-0 cursor-crosshair"
+        className="absolute inset-0 cursor-crosshair bg-transparent"
         onClick={handleScreenClick}
         style={{ zIndex: 999 }}
       >

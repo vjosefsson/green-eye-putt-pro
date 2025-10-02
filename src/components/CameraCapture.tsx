@@ -16,8 +16,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
   useEffect(() => {
     startCamera();
     
+    // Add camera-active class to body for transparent background
+    document.body.classList.add('camera-active');
+    
     return () => {
       stopCamera();
+      document.body.classList.remove('camera-active');
     };
   }, []);
 

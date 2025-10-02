@@ -517,31 +517,8 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
             </div>
           )}
 
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-auto" style={{ zIndex: 1001 }}>
-            {ballViewportPos && holeViewportPos && (
-              <Button
-                onClick={captureImage}
-                size="lg"
-                className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
-                disabled={isLoading}
-              >
-                <Camera className="w-5 h-5" />
-                Ta bild
-              </Button>
-            )}
-            
-            {(ballViewportPos || holeViewportPos) && (
-              <Button
-                onClick={handleResetMarkers}
-                size="lg"
-                variant="secondary"
-                className="flex items-center gap-2 shadow-lg"
-              >
-                <RotateCcw className="w-5 h-5" />
-                Rensa
-              </Button>
-            )}
-
+          <div className="absolute bottom-8 left-0 right-0 flex justify-between items-center px-8 pointer-events-auto" style={{ zIndex: 1001 }}>
+            {/* Left side button */}
             <Button
               onClick={() => {
                 setShowInstructions(true);
@@ -553,13 +530,41 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
                 setImageMetadata(null);
                 setViewportDimensions(null);
               }}
-              size="lg"
-              variant="destructive"
-              className="flex items-center gap-2 shadow-lg"
+              size="icon"
+              variant="ghost"
+              className="w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 border border-white/20 shadow-lg"
             >
-              <X className="w-5 h-5" />
-              Avbryt
+              <X className="w-6 h-6 text-white" />
             </Button>
+
+            {/* Center capture button */}
+            {ballViewportPos && holeViewportPos ? (
+              <button
+                onClick={captureImage}
+                disabled={isLoading}
+                className="relative w-20 h-20 rounded-full bg-white border-4 border-white shadow-2xl disabled:opacity-50 transition-transform active:scale-95 hover:scale-105"
+              >
+                <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
+                  <Camera className="w-8 h-8 text-black" />
+                </div>
+              </button>
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-white/30 border-4 border-white/50 backdrop-blur-sm" />
+            )}
+
+            {/* Right side button */}
+            {(ballViewportPos || holeViewportPos) ? (
+              <Button
+                onClick={handleResetMarkers}
+                size="icon"
+                variant="ghost"
+                className="w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 border border-white/20 shadow-lg"
+              >
+                <RotateCcw className="w-6 h-6 text-white" />
+              </Button>
+            ) : (
+              <div className="w-14 h-14" />
+            )}
           </div>
         </div>
       )}

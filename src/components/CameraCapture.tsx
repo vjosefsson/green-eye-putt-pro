@@ -23,6 +23,25 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
 
   const captureWithNativeCamera = async () => {
     try {
+      console.log("Checking camera permissions...");
+      
+      // Check current permission status
+      const permissions = await CapCamera.checkPermissions();
+      console.log("Current permissions:", permissions);
+      
+      // Request permissions if not granted
+      if (permissions.camera !== 'granted') {
+        console.log("Requesting camera permissions...");
+        const requested = await CapCamera.requestPermissions();
+        console.log("Permission request result:", requested);
+        
+        if (requested.camera !== 'granted') {
+          alert("Camera permission is required to analyze golf greens. Please enable it in Settings.");
+          return;
+        }
+      }
+      
+      console.log("Opening native camera...");
       const image = await CapCamera.getPhoto({
         quality: 90,
         allowEditing: false,
@@ -32,11 +51,12 @@ export const CameraCapture = ({ onCapture }: CameraCaptureProps) => {
       });
 
       if (image.dataUrl) {
+        console.log("Image captured successfully");
         onCapture(image.dataUrl);
       }
     } catch (error) {
       console.error("Error capturing with native camera:", error);
-      alert("Unable to access camera. Please ensure camera permissions are granted.");
+      alert("Unable to access camera. Error: " + (error as Error).message);
     }
   };
 
